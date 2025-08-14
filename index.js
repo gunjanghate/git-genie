@@ -291,12 +291,18 @@ async function pushBranch(branchName) {
       }]);
 
       if (branchChoice === 'new') {
+        // Auto-suggest branch name
+        const suggestedBranch = `${opts.type}/${desc.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}`;
+
         const { newBranchName } = await inquirer.prompt([{
           type: 'input',
           name: 'newBranchName',
-          message: 'Enter new branch name (leave empty to auto-generate):',
+          message: 'Enter new branch name (or edit the suggested):',
+          default: suggestedBranch,
+          validate: input => input ? true : 'Branch name cannot be empty'
         }]);
-        branchName = newBranchName || `${opts.type}/${desc.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}`;
+
+        branchName = newBranchName;
         await git.checkoutLocalBranch(branchName);
         console.log(chalk.blue(`ℹ Created and switched to new branch: ${branchName}`));
       } else {
