@@ -1,15 +1,44 @@
 {
   "name": "git-butler",
   "version": "1.0.0",
-  "description": "",
+  "description": "An intelligent Git CLI that automates staging, Conventional Commit messages (via Gemini), branch flow, and push/merge in one go.",
   "main": "index.js",
+  "type": "module",
+  "bin": {
+    "git-genie": "./index.js",
+    "gg": "./index.js"
+  },
+  "files": [
+    "index.js",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "git",
+    "cli",
+    "commit",
+    "conventional-commits",
+    "ai",
+    "gemini",
+    "developer-tools",
+    "automation"
+  ],
+  "author": "GG",
   "license": "ISC",
-  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gunjanghate/git-butler.git"
+  },
+  "bugs": {
+    "url": "https://github.com/gunjanghate/git-butler/issues"
+  },
+  "homepage": "https://github.com/gunjanghate/git-butler#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "axios": "^1.11.0",
@@ -20,8 +49,5 @@
     "inquirer": "^12.9.2",
     "ora": "^8.2.0",
     "simple-git": "^3.28.0"
-  },
-  "bin": {
-    "gauto": "index.js"
   }
 }

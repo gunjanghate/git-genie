@@ -1,3 +1,0 @@
-qwertyu
-Testing merge functionality - random change #1
-More test content for verification
