@@ -1,6 +1,10 @@
 # 🚀 GitGenie CLI - Complete Documentation
 
-## 📋 P### 4. Commit Message Generati### 7. CLI Argu### 8. Error Handling & Feedback
+## 📋 Overview
+
+**Git genie** is an intelligent command-line interface (CLI) tool designed to simplify and automate Git workflows. It handles common Git operations like committing, branch management, staging, and pushing, while optionally integrating AI-generated commit messages using Google Gemini. This comprehensive documentation details all features, configurations, and functionality implemented to date.
+
+## 🎯 Key Features
 
 - Validates Git repository existence.
 - Checks for staged changes; automatically stages if missing.
