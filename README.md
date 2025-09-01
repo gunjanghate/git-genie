@@ -1,6 +1,28 @@
-# 🚀 Git genie CLI - Complete Documentation
+# 🚀 GitGenie CLI - Complete Documentation
 
-## 📋 Project Overview
+## 📋 P### 4. Commit Message Generati### 7. CLI Argu### 8. Error Handling & Feedback
+
+- Validates Git repository existence.
+- Checks for staged changes; automatically stages if missing.
+- Handles Gemini API errors and falls back gracefully to manual commit messages.
+- Only warns about missing API key when `--genie` flag is used.
+- Provides spinner feedback for staging, commit generation, and pushing.
+- Clear console messages using `chalk` for success, warnings, and errors.
+- Exits gracefully with proper error messages when operations fail.Options
+
+- `<desc>`: Short description of the change (mandatory).
+- `--type <type>`: Commit type (default: `feat`).
+- `--scope <scope>`: Optional scope for commit message.
+- `--genie`: Enable AI commit message generation using Google Gemini.
+- `--no-branch`: Skip interactive branch selection and commit directly to the main branch.
+- `--push-to-main`: Automatically merge current branch to main and push.
+- `--remote <url>`: Add remote origin if the repository is new.**Manual commit messages by default** - Uses conventional commit format: `type(scope): description`
+- **Optional AI-generated commit messages** using **Google Gemini** when `--genie` flag is used
+- Uses the model `gemini-1.5-flash` to generate professional Conventional Commit messages based on code diff analysis
+- AI analyzes code changes and suggests appropriate commit types, scopes, and descriptions
+- Fallback to manual commit message when `--genie` is used but Gemini API fails or API key is missing
+- Commit messages follow Conventional Commit style, e.g., `feat(auth): add OAuth2 integration`
+- Manual format: `type(scope): description` using provided --type and --scope optionsOverview
 
 **Git genie** is an intelligent command-line interface (CLI) tool designed to simplify and automate Git workflows. It handles common Git operations like committing, branch management, staging, and pushing, while optionally integrating AI-generated commit messages using Google Gemini. This comprehensive documentation details all features, configurations, and functionality implemented to date.
 
@@ -80,7 +102,7 @@ d:\my\GUNJAN\Git genie\
 - `<desc>`: Short description of the change (mandatory).
 - `--type <type>`: Commit type (default: `feat`).
 - `--scope <scope>`: Optional scope for commit message.
-- `--no-ai`: Disable AI commit message generation.
+- `--genie`: Enable AI commit message generation.
 - `--no-branch`: Skip interactive branch selection and commit directly to the main branch.
 - `--remote <url>`: Add remote origin if the repository is new.
 
@@ -118,6 +140,11 @@ d:\my\GUNJAN\Git genie\
 #### Environment Configuration (`.env`):
 
 ```properties
+GEMINI_API_KEY=your_gemini_api_key_here  # Optional: Required only for --genie flag
+GROK_API_KEY=your_grok_api_key_here      # Available for future features
+```
+
+```properties
 GEMINI_API_KEY=your_gemini_api_key_here  # Required for AI commit messages
 GROK_API_KEY=your_grok_api_key_here      # Available for future features
 ```
@@ -133,14 +160,23 @@ cd "d:\my\GUNJAN\Git genie"
 # Install dependencies (if needed)
 npm install
 
-# Basic commit with AI-generated message
+# Basic commit with manual message (default behavior)
 node index.js "add new feature"
+
+# Commit with AI-generated message using Gemini
+node index.js "fix authentication bug" --genie
 
 # Commit with specific type and scope
 node index.js "fix authentication bug" --type fix --scope auth
 
-# Commit without AI, directly to main branch
-node index.js "update documentation" --no-ai --no-branch
+# Commit with AI, specific type and scope
+node index.js "optimize database queries" --type perf --scope db --genie
+
+# Commit directly to main branch (no AI)
+node index.js "update documentation" --no-branch
+
+# Automatically merge to main and push
+node index.js "add user dashboard" --type feat --push-to-main
 
 # Initialize new repo with remote
 node index.js "initial commit" --remote https://github.com/username/repo.git --no-branch
@@ -167,29 +203,32 @@ node index.js "implement user management"
 #### Advanced Usage Scenarios:
 
 ```powershell
-# Testing the CLI tool functionality
-node index.js "test file modifications" --type test --scope cli
+# Testing the CLI tool functionality with AI
+node index.js "test file modifications" --type test --scope cli --genie
 
-# Bug fix with specific scope
+# Bug fix with specific scope (manual commit)
 node index.js "resolve merge conflicts" --type fix --scope git
 
-# Feature addition without AI
-node index.js "add interactive branch selection" --type feat --scope branch --no-ai
+# Feature addition with AI-generated commit message
+node index.js "add interactive branch selection" --type feat --scope branch --genie
 
-# Documentation update
+# Documentation update directly to main
 node index.js "update README with examples" --type docs --no-branch
+
+# Performance improvement with AI and auto-merge to main
+node index.js "optimize database queries" --type perf --scope db --genie --push-to-main
 ```
 
 #### Legacy Examples:
 
 ```bash
-# First commit to a new repo, main branch, no AI
-node index.js "initial commit" --no-branch --no-ai --remote https://github.com/username/git-genie.git
+# First commit to a new repo, main branch, manual commit
+node index.js "initial commit" --no-branch --remote https://github.com/username/git-genie.git
 
 # Commit to existing repo, interactive branch selection & AI commit
-node index.js "add interactive branch selection" --type feat --scope commit
+node index.js "add interactive branch selection" --type feat --scope commit --genie
 
-# Commit to current branch directly
+# Commit to current branch directly with manual message
 node index.js "fix typo in README" --no-branch
 ```
 
@@ -201,10 +240,10 @@ node index.js "fix typo in README" --no-branch
 4. Checks for existing commits.
 5. Prompts the user to choose the branch (interactive) or commits directly to main if `--no-branch`.
 6. Stages all files if needed.
-7. Generates commit message (AI or manual).
+7. Generates commit message (AI with `--genie` flag or manual by default).
 8. Commits the changes.
-9. Asks the user to confirm pushing the branch to remote.
-10. Pushes branch with retry logic.
+9. Handles push logic based on `--push-to-main` flag or interactive prompts.
+10. Optionally merges to main branch and pushes with retry logic.
 11. Provides detailed console feedback for every step.
 
 ---
