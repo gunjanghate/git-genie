@@ -34,9 +34,9 @@ const opts = program.opts();
 
 /** Generate commit message */
 async function generateCommitMessage(diff) {
-  // Only use AI if --gemini flag is provided AND API key exists
-  if (!opts.gemini || !process.env.GEMINI_API_KEY) {
-    if (opts.gemini && !process.env.GEMINI_API_KEY) {
+  // Only use AI if --genie flag is provided AND API key exists
+  if (!opts.genie || !process.env.GEMINI_API_KEY) {
+    if (opts.genie && !process.env.GEMINI_API_KEY) {
       console.warn(chalk.yellow('⚠ GEMINI_API_KEY not found. Using manual commit message instead.'));
     }
     return `${opts.type}${opts.scope ? `(${opts.scope})` : ''}: ${desc}`;
