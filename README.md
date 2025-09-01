@@ -1,13 +1,13 @@
-# 🚀 Git Butler CLI - Complete Documentation
+# 🚀 Git genie CLI - Complete Documentation
 
 ## 📋 Project Overview
 
-**Git Butler** is an intelligent command-line interface (CLI) tool designed to simplify and automate Git workflows. It handles common Git operations like committing, branch management, staging, and pushing, while optionally integrating AI-generated commit messages using Google Gemini. This comprehensive documentation details all features, configurations, and functionality implemented to date.
+**Git genie** is an intelligent command-line interface (CLI) tool designed to simplify and automate Git workflows. It handles common Git operations like committing, branch management, staging, and pushing, while optionally integrating AI-generated commit messages using Google Gemini. This comprehensive documentation details all features, configurations, and functionality implemented to date.
 
 ## 📁 Complete Project Structure
 
 ```
-d:\my\GUNJAN\Git Butler\
+d:\my\GUNJAN\Git genie\
 ├── .env                    # Environment variables (API keys)
 ├── .git/                  # Git repository data
 ├── .gitignore            # Git ignore rules
@@ -109,7 +109,7 @@ d:\my\GUNJAN\Git Butler\
 
 #### Project Configuration:
 
-- **Name:** `git-butler`
+- **Name:** `git-genie`
 - **Version:** `1.0.0`
 - **Type:** `module` (ES6 modules)
 - **Binary:** `gauto` command available globally after installation
@@ -128,7 +128,7 @@ GROK_API_KEY=your_grok_api_key_here      # Available for future features
 
 ```powershell
 # Navigate to project directory
-cd "d:\my\GUNJAN\Git Butler"
+cd "d:\my\GUNJAN\Git genie"
 
 # Install dependencies (if needed)
 npm install
@@ -184,7 +184,7 @@ node index.js "update README with examples" --type docs --no-branch
 
 ```bash
 # First commit to a new repo, main branch, no AI
-node index.js "initial commit" --no-branch --no-ai --remote https://github.com/username/git-butler.git
+node index.js "initial commit" --no-branch --no-ai --remote https://github.com/username/git-genie.git
 
 # Commit to existing repo, interactive branch selection & AI commit
 node index.js "add interactive branch selection" --type feat --scope commit
@@ -209,7 +209,7 @@ node index.js "fix typo in README" --no-branch
 
 ---
 
-## 🛠 How Git Butler Works (Detailed Step-by-Step)
+## 🛠 How Git genie Works (Detailed Step-by-Step)
 
 1. **Repository Check**: Verifies if current directory is a Git repo, initializes if not
 2. **Remote Setup**: Adds remote origin if provided via `--remote` flag
@@ -259,7 +259,7 @@ node index.js "test refactoring" --type refactor
 
 ## 📋 Current Project Status
 
-- **Repository:** `git-butler` by `gunjanghate`
+- **Repository:** `git-genie` by `gunjanghate`
 - **Current Branch:** `change/text2`
 - **Default Branch:** `main`
 - **Status:** Active development with test files for functionality validation
@@ -271,11 +271,11 @@ node index.js "test refactoring" --type refactor
 - Can implement **last-used branch suggestion** for faster workflow.
 - Optional integration with other AI models for commit suggestions.
 - Ability to include commit templates for faster conventional commit adherence.
-- Extend CLI with commands like `git-butler status`, `git-butler log`, etc.
+- Extend CLI with commands like `git-genie status`, `git-genie log`, etc.
 - Add support for conventional commit scopes validation.
 - Implement configuration file for default settings.
 - Add git hooks integration for automated workflows.
 
 ---
 
-This document captures the current state of **Git Butler CLI**, including all features, functionality, CLI behavior, project structure, and comprehensive usage examples. It serves as a complete reference for users and developers working with or extending the tool.
+This document captures the current state of **Git genie CLI**, including all features, functionality, CLI behavior, project structure, and comprehensive usage examples. It serves as a complete reference for users and developers working with or extending the tool.

@@ -1,5 +1,5 @@
 {
-  "name": "git-butler",
+  "name": "@gunjanghate/git-genie",
   "version": "1.0.0",
   "description": "An intelligent Git CLI that automates staging, Conventional Commit messages (via Gemini), branch flow, and push/merge in one go.",
   "main": "index.js",
@@ -30,12 +30,12 @@
   "license": "ISC",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/gunjanghate/git-butler.git"
+    "url": "git+https://github.com/gunjanghate/git-genie.git"
   },
   "bugs": {
-    "url": "https://github.com/gunjanghate/git-butler/issues"
+    "url": "https://github.com/gunjanghate/git-genie/issues"
   },
-  "homepage": "https://github.com/gunjanghate/git-butler#readme",
+  "homepage": "https://github.com/gunjanghate/git-genie#readme",
   "engines": {
     "node": ">=18.0.0"
   },
