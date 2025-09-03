@@ -42,10 +42,10 @@ async function generateCommitMessage(diff) {
     return `${opts.type}${opts.scope ? `(${opts.scope})` : ''}: ${desc}`;
   }
 
-  const spinner = ora('Generating commit message with Gemini AI...').start();
+  const spinner = ora('Generating commit message. Please wait...').start();
   try {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
     const prompt = `You are a senior software engineer at a Fortune 500 company. Generate a professional git commit message following strict industry standards.
 
     REQUIREMENTS:
@@ -167,7 +167,7 @@ async function mergeToMainAndPush(currentBranch) {
         await git.deleteLocalBranch(currentBranch);
         spinner5.succeed(`Deleted local branch "${currentBranch}" successfully`);
 
-        // Try to delete remote branch if it exists
+        // Try to delete remote Branch if it exists
         try {
           await git.push('origin', `:${currentBranch}`);
           console.log(chalk.green(`Deleted remote branch "${currentBranch}" successfully`));
