@@ -1,157 +1,206 @@
-# 🚀 GitGenie CLI - Complete Documentation
+# GitGenie CLI - Complete Documentation
 
-## 📋 Overview
+## Overview
 
-**Git genie** is an intelligent command-line interface (CLI) tool designed to simplify and automate Git workflows. It handles common Git operations like committing, branch management, staging, and pushing, while optionally integrating AI-generated commit messages using Google Gemini. This comprehensive documentation details all features, configurations, and functionality implemented to date.
+**GitGenie** is an intelligent command-line interface (CLI) tool designed to simplify and automate Git workflows. It handles common Git operations like committing, branch management, staging, and pushing, while optionally integrating AI-generated commit messages using Google Gemini. This comprehensive documentation details all features, configurations, and functionality implemented to date.
 
-## 🎯 Key Features
+## Quick Start
 
-- Validates Git repository existence.
-- Checks for staged changes; automatically stages if missing.
-- Handles Gemini API errors and falls back gracefully to manual commit messages.
-- Only warns about missing API key when `--genie` flag is used.
-- Provides spinner feedback for staging, commit generation, and pushing.
-- Clear console messages using `chalk` for success, warnings, and errors.
-- Exits gracefully with proper error messages when operations fail.Options
+### Installation
 
-- `<desc>`: Short description of the change (mandatory).
-- `--type <type>`: Commit type (default: `feat`).
-- `--scope <scope>`: Optional scope for commit message.
-- `--genie`: Enable AI commit message generation using Google Gemini.
-- `--no-branch`: Skip interactive branch selection and commit directly to the main branch.
-- `--push-to-main`: Automatically merge current branch to main and push.
-- `--remote <url>`: Add remote origin if the repository is new.**Manual commit messages by default** - Uses conventional commit format: `type(scope): description`
-- **Optional AI-generated commit messages** using **Google Gemini** when `--genie` flag is used
-- Uses the model `gemini-1.5-flash` to generate professional Conventional Commit messages based on code diff analysis
-- AI analyzes code changes and suggests appropriate commit types, scopes, and descriptions
-- Fallback to manual commit message when `--genie` is used but Gemini API fails or API key is missing
-- Commit messages follow Conventional Commit style, e.g., `feat(auth): add OAuth2 integration`
-- Manual format: `type(scope): description` using provided --type and --scope optionsOverview
-
-**Git genie** is an intelligent command-line interface (CLI) tool designed to simplify and automate Git workflows. It handles common Git operations like committing, branch management, staging, and pushing, while optionally integrating AI-generated commit messages using Google Gemini. This comprehensive documentation details all features, configurations, and functionality implemented to date.
-
-## 📁 Complete Project Structure
-
-```
-d:\my\GUNJAN\Git genie\
-├── .env                    # Environment variables (API keys)
-├── .git/                  # Git repository data
-├── .gitignore            # Git ignore rules
-├── index.js              # Main application logic (350 lines)
-├── node_modules/         # Dependencies
-├── package.json          # Project configuration & dependencies
-├── package-lock.json     # Locked dependency versions
-├── README.md             # This comprehensive documentation
-├── test.txt              # Test file with random content
-└── test2.txt             # Another test file with simple content
+```bash
+npm install -g @gunjanghate/git-genie
 ```
 
----
+### Configuration
 
-## Features Implemented
+Before using AI features, configure your Gemini API key:
 
-### 1. Git Repository Initialization
-
-- Automatically detects if the current directory is a Git repository.
-- Initializes a Git repository if none exists (`git init`).
-- Sets the default branch to `main` for new repositories.
-- Optionally adds a remote origin if a URL is provided using `--remote <url>`.
-- Displays clear console messages and spinner feedback during the initialization process.
-
-### 2. Branch Management
-
-- **Interactive branch selection:** When committing, users are prompted to choose between the current branch or creating a new branch.
-- **Auto-suggested branch names:** Suggested branch names follow the format:
-
-```
-<commit-type>/<commit-description>-<YYYY-MM-DD>
+```bash
+gg config YOUR_GEMINI_API_KEY
 ```
 
-- Users can edit the suggested name when creating a new branch.
-- Supports committing directly to the main branch using the `--no-branch` flag.
-- Ensures that existing branches are not overwritten.
-- Clear messages indicate whether switching to an existing branch or creating a new one.
+### Basic Usage
 
-### 3. File Staging
+```bash
+# Manual commit message (default)
+gg "add new feature"
 
-- Automatically detects unstaged changes.
-- Stages all files if no staged changes are found (`git add ./*`).
-- Provides spinner feedback for staging progress.
-- Error handling if staging fails.
+# AI-generated commit message
+gg "fix authentication bug" --genie
+
+# Direct to main branch
+gg "update documentation" --no-branch
+```
+
+## Configuration Management
+
+### Setting up Gemini API Key
+
+GitGenie supports multiple ways to configure your Gemini API key:
+
+#### Method 1: Using the config command (Recommended)
+
+```bash
+gg config YOUR_GEMINI_API_KEY
+```
+
+This saves the API key to `~/.gitgenie/config.json` for persistent use across all projects.
+
+#### Method 2: Environment variable
+
+```bash
+export GEMINI_API_KEY="your_api_key_here"
+```
+
+#### Method 3: .env file in project directory
+
+Create a `.env` file in your project root:
+
+```properties
+GEMINI_API_KEY=your_api_key_here
+```
+
+**Priority Order:** Environment variable > Config file > .env file
+
+### Getting a Gemini API Key
+
+1. Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. Create a new API key
+3. Configure it using one of the methods above
+
+## Key Features
+
+- Validates Git repository existence and initializes if needed
+- Automatic file staging with progress feedback
+- AI-powered commit message generation using Google Gemini
+- Interactive branch management with auto-suggestions
+- Automated merge-to-main workflows
+- Retry logic for network operations
+- Professional error handling and user feedback
+- Cross-platform configuration management
+
+## CLI Commands and Options
+
+### Main Command
+
+```bash
+gg <description> [options]
+```
+
+### Configuration Command
+
+```bash
+gg config <api-key>    # Save Gemini API key for persistent use
+```
+
+### Available Options
+
+- `<desc>`: Short description of the change (mandatory)
+- `--type <type>`: Commit type (default: `feat`)
+- `--scope <scope>`: Optional scope for commit message
+- `--genie`: Enable AI commit message generation using Google Gemini
+- `--no-branch`: Skip interactive branch choice and commit to main
+- `--push-to-main`: Automatically merge current branch to main and push
+- `--remote <url>`: Add remote origin if repo is new
+
+### Supported Commit Types
+
+- `feat`: New features
+- `fix`: Bug fixes
+- `docs`: Documentation changes
+- `style`: Code style changes
+- `refactor`: Code refactoring
+- `test`: Adding or updating tests
+- `chore`: Maintenance tasks
+- `ci`: CI/CD changes
+- `build`: Build system changes
+- `perf`: Performance improvements
+
+## Project Structure
+
+```
+GitGenie Project/
+├── ~/.gitgenie/
+│   └── config.json           # User configuration file
+├── .env                      # Optional project environment variables
+├── .git/                     # Git repository data
+├── .gitignore               # Git ignore rules
+├── index.js                 # Main application logic
+├── node_modules/            # Dependencies
+├── package.json             # Project configuration & dependencies
+├── package-lock.json        # Locked dependency versions
+└── README.md                # This documentation
+```
+
+## Core Features
+
+### 1. Git Repository Management
+
+- Automatic repository detection and initialization
+- Smart remote origin setup
+- Default branch configuration to `main`
+- Comprehensive repository state validation
+
+### 2. Intelligent Branch Management
+
+- Interactive branch selection with current branch display
+- Auto-suggested branch names using format: `type/description-YYYY-MM-DD`
+- Support for direct main branch commits with `--no-branch`
+- Safe branch creation and switching
+
+### 3. Automated File Staging
+
+- Detects unstaged changes automatically
+- Stages all files when no staged changes found
+- Progress feedback during staging operations
+- Robust error handling for staging failures
 
 ### 4. Commit Message Generation
 
-- Supports AI-generated commit messages using **Google Gemini** (requires `GEMINI_API_KEY`).
-- Uses the model `gemini-1.5-flash` to generate a professional Conventional Commit message based on the code diff.
-- Fallback to a manual commit message when `--no-ai` is used or if Gemini API fails.
-- Commit messages follow Conventional Commit style, e.g., `feat(commit-generation): Improve branch handling`.
-- Includes details like features added, fixes, improvements, and other contextual information automatically if AI is enabled.
+- **Manual mode (default)**: Uses conventional commit format `type(scope): description`
+- **AI mode (--genie)**: Powered by Google Gemini 2.0 Flash model
+- Professional Conventional Commits specification compliance
+- Intelligent analysis of code diffs for contextual commit messages
+- Graceful fallback to manual mode when AI fails
+- Support for all conventional commit types and scopes
 
-### 5. Commit Execution
+### 5. Advanced Push and Merge Workflows
 
-- Commits the staged files with the generated commit message.
-- Supports both AI-generated and manual messages.
-- Provides console confirmation of the commit.
-- Handles first commit scenarios properly.
+- Interactive push confirmation with retry logic
+- Automated merge-to-main functionality with `--push-to-main`
+- Feature branch cleanup after successful merges
+- Remote branch synchronization and management
+- Network failure resilience with automatic retries
 
-### 6. Push Logic
+### 6. Professional User Experience
 
-- Pushes the current branch to the remote (`origin`) after committing.
-- Includes retry logic for network failures (up to 2 retries).
-- Interactive confirmation prompt before pushing (`Do you want to push branch ...?`).
-- Provides clear feedback and error handling for push failures.
+- Clean, corporate-friendly messaging
+- Real-time progress indicators with spinners
+- Colored output for better readability
+- Comprehensive error handling with helpful messages
+- Cross-platform compatibility
 
-### 7. CLI Arguments & Options
+## Dependencies & Technology Stack
 
-- `<desc>`: Short description of the change (mandatory).
-- `--type <type>`: Commit type (default: `feat`).
-- `--scope <scope>`: Optional scope for commit message.
-- `--genie`: Enable AI commit message generation.
-- `--no-branch`: Skip interactive branch selection and commit directly to the main branch.
-- `--remote <url>`: Add remote origin if the repository is new.
+### Core Dependencies
 
-### 8. Error Handling & Feedback
+- **@google/generative-ai** (latest): Google Gemini AI integration
+- **commander** (v14.0.0): CLI argument parsing and command structure
+- **simple-git** (v3.28.0): Git operations and repository management
+- **inquirer** (v12.9.2): Interactive command line prompts
+- **chalk** (v5.5.0): Terminal color and styling
+- **ora** (v8.2.0): Progress spinners and status indicators
+- **dotenv** (v17.2.1): Environment variable management
 
-- Validates Git repository existence.
-- Checks for staged changes; automatically stages if missing.
-- Handles Gemini API errors and falls back gracefully.
-- Provides spinner feedback for staging, commit generation, and pushing.
-- Clear console messages using `chalk` for success, warnings, and errors.
-- Exits gracefully with proper error messages when operations fail.
+### Project Configuration
 
-### 9. Dependencies & Technology Stack
-
-#### Core Dependencies:
-
-- **`@google/generative-ai`** (v0.24.1) - Google Gemini AI integration for intelligent commit messages
-- **`commander`** (v14.0.0) - CLI argument parsing and command structure
-- **`simple-git`** (v3.28.0) - Git operations and repository management
-- **`inquirer`** (v12.9.2) - Interactive command line prompts and user input
-- **`chalk`** (v5.5.0) - Colored terminal output for better UX
-- **`ora`** (v8.2.0) - Terminal spinners and progress indicators
-- **`dotenv`** (v17.2.1) - Environment variable loading for API keys
-- **`axios`** (v1.11.0) - HTTP client (available for future use)
-- **`execa`** (v9.6.0) - Process execution (available for future use)
-
-#### Project Configuration:
-
-- **Name:** `git-genie`
-- **Version:** `1.0.0`
-- **Type:** `module` (ES6 modules)
-- **Binary:** `gauto` command available globally after installation
-- **Main Entry:** `index.js`
-
-#### Environment Configuration (`.env`):
-
-```properties
-GEMINI_API_KEY=your_gemini_api_key_here  # Optional: Required only for --genie flag
-GROK_API_KEY=your_grok_api_key_here      # Available for future features
-```
-
-```properties
-GEMINI_API_KEY=your_gemini_api_key_here  # Required for AI commit messages
-GROK_API_KEY=your_grok_api_key_here      # Available for future features
-```
+- **Package**: `gitgenie-cli`
+- **Version**: `1.0.0+`
+- **Module Type**: ES6 modules
+- **Global Command**: `gg`
+- **Entry Point**: `index.js`
+- **Node Version**: 16+ recommended
 
 ### 10. Example Usage & Sample Commands
 
