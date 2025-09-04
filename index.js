@@ -18,7 +18,6 @@ const git = simpleGit();
 const configDir = path.join(os.homedir(), '.gitgenie');
 const configFile = path.join(configDir, 'config.json');
 
-// Helper: load API key
 function getApiKey() {
   if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
 
@@ -37,7 +36,7 @@ let apiKey = getApiKey();
 
 const program = new Command();
 
-// 🛠️ Config command as a subcommand
+//  Config command as a subcommand
 program
   .command('config <apikey>')
   .description('Save your Gemini API key for future use')
