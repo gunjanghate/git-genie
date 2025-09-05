@@ -36,14 +36,25 @@ let apiKey = getApiKey();
 
 const program = new Command();
 
-// Banner and logo for help output
-const banner = `\n${chalk.cyan("🔮")} ${chalk.magentaBright("Git")}${chalk.yellow("Genie")} ${chalk.cyan("🔮")}
-${chalk.gray("┌─────────────────┐")}
-${chalk.gray("│")} ${chalk.green("✨ AI-Powered Git ✨")} ${chalk.gray("│")}
-${chalk.gray("│")} ${chalk.blue("Smart Commit Magic")} ${chalk.gray("│")}
-${chalk.gray("└─────────────────┘")}
-   ${chalk.yellow("⚡")} ${chalk.red("Ready to code!")} ${chalk.yellow("⚡")}\n`;
-const logo = `\n $$$$$$\\   $$$$$$\\  \n$$  __$$\\ $$  __$$\\ \n$$ /  \\__|$$ /  \\__|\n$$ |$$$$\\ $$ |$$$$\\ \n$$ |\\_$$ |$$ |\\_$$ |\n$$ |  $$ |$$ |  $$ |\n\\$$$$$$  |\\$$$$$$  |\n \\______/  \\______/  \n`;
+// Banner and logo for help output (copied exactly from postinstall.js)
+const banner = `
+    ${chalk.cyan("🔮")} ${chalk.magentaBright("Git")}${chalk.yellow("Genie")} ${chalk.cyan("🔮")}
+    ${chalk.gray("┌─────────────────┐")}
+    ${chalk.gray("│")} ${chalk.green("✨ AI-Powered Git ✨")} ${chalk.gray("│")}
+    ${chalk.gray("│")} ${chalk.blue("Smart Commit Magic")} ${chalk.gray("│")}
+    ${chalk.gray("└─────────────────┘")}
+       ${chalk.yellow("⚡")} ${chalk.red("Ready to code!")} ${chalk.yellow("⚡")}
+`;
+const logo = `
+ $$$$$$\   $$$$$$\  
+$$  __$$\ $$  __$$\ 
+$$ /  \__|$$ /  \__|
+$$ |$$$$\ $$ |$$$$\ 
+$$ |\_$$ |$$ |\_$$ |
+$$ |  $$ |$$ |  $$ |
+\$$$$$$  |\$$$$$$  |
+ \______/  \______/  
+`;
 
 // Show banner/logo on help output
 program.configureHelp({
@@ -53,7 +64,7 @@ program.configureHelp({
       .map(opt => `  ${opt.flags}  ${opt.description}`)
       .join('\n');
 
-    // Format arguments
+    // Format arguments (only once)
     const args = helper.visibleArguments(cmd)
       .map(arg => `  <${arg.name}>  ${arg.description || ''}`)
       .join('\n');
@@ -63,15 +74,27 @@ program.configureHelp({
       .map(sub => `  ${sub.name()}  ${sub.description()}`)
       .join('\n');
 
+    // Onboarding instructions (copied from postinstall.js)
+    const onboarding = `\n${chalk.green.bold(" Welcome to GitGenie!")}
+${logo}
+${banner}
+` +
+      chalk.green("Genie powers already unlocked!") +
+      '\nTry your first AI-powered commit:\n' +
+      chalk.magenta('   gg "your changes" --genie\n') +
+      chalk.yellow("⚡ Unlock Genie powers:") +
+      '\n   gg config <your_api_key>\n' +
+      chalk.cyan("Or just get started with a manual commit:") +
+      '\n' + chalk.magenta('   gg "your commit message"\n') +
+      chalk.blue("📖 Docs & guide: https://gitgenie.vercel.app/\n");
+
     return (
-      chalk.green.bold("\n Welcome to GitGenie!") +
-      logo +
-      banner +
+      onboarding +
       '\nUsage:\n  ' + helper.commandUsage(cmd) +
       '\n\nDescription:\n  ' + helper.commandDescription(cmd) +
       (options ? '\n\nOptions:\n' + options : '') +
       (args ? '\n\nArguments:\n' + args : '') +
-      (subcommands ? '\n\nSubcommands:\n' + subcommands : '')
+      (subcommands ? '\n\nCommands:\n' + subcommands : '')
     );
   }
 });
