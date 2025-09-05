@@ -36,10 +36,50 @@ let apiKey = getApiKey();
 
 const program = new Command();
 
+// Banner and logo for help output
+const banner = `\n${chalk.cyan("🔮")} ${chalk.magentaBright("Git")}${chalk.yellow("Genie")} ${chalk.cyan("🔮")}
+${chalk.gray("┌─────────────────┐")}
+${chalk.gray("│")} ${chalk.green("✨ AI-Powered Git ✨")} ${chalk.gray("│")}
+${chalk.gray("│")} ${chalk.blue("Smart Commit Magic")} ${chalk.gray("│")}
+${chalk.gray("└─────────────────┘")}
+   ${chalk.yellow("⚡")} ${chalk.red("Ready to code!")} ${chalk.yellow("⚡")}\n`;
+const logo = `\n $$$$$$\\   $$$$$$\\  \n$$  __$$\\ $$  __$$\\ \n$$ /  \\__|$$ /  \\__|\n$$ |$$$$\\ $$ |$$$$\\ \n$$ |\\_$$ |$$ |\\_$$ |\n$$ |  $$ |$$ |  $$ |\n\\$$$$$$  |\\$$$$$$  |\n \\______/  \\______/  \n`;
+
+// Show banner/logo on help output
+program.configureHelp({
+  formatHelp: (cmd, helper) => {
+    // Format options
+    const options = helper.visibleOptions(cmd)
+      .map(opt => `  ${opt.flags}  ${opt.description}`)
+      .join('\n');
+
+    // Format arguments
+    const args = helper.visibleArguments(cmd)
+      .map(arg => `  <${arg.name}>  ${arg.description || ''}`)
+      .join('\n');
+
+    // Format subcommands
+    const subcommands = helper.visibleCommands(cmd)
+      .map(sub => `  ${sub.name()}  ${sub.description()}`)
+      .join('\n');
+
+    return (
+      chalk.green.bold("\n Welcome to GitGenie!") +
+      logo +
+      banner +
+      '\nUsage:\n  ' + helper.commandUsage(cmd) +
+      '\n\nDescription:\n  ' + helper.commandDescription(cmd) +
+      (options ? '\n\nOptions:\n' + options : '') +
+      (args ? '\n\nArguments:\n' + args : '') +
+      (subcommands ? '\n\nSubcommands:\n' + subcommands : '')
+    );
+  }
+});
+
 //  Config command as a subcommand
 program
   .command('config <apikey>')
-  .description('Save your Gemini API key for future use')
+  .description('Save your Gemini API key for unlocking genie powers ✨')
   .action((apikey) => {
     try {
       if (!fs.existsSync(configDir)) fs.mkdirSync(configDir, { recursive: true });
