@@ -10,6 +10,7 @@ import inquirer from 'inquirer';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import crypto from 'crypto';
 
 dotenv.config();
 const git = simpleGit();
@@ -18,13 +19,37 @@ const git = simpleGit();
 const configDir = path.join(os.homedir(), '.gitgenie');
 const configFile = path.join(configDir, 'config.json');
 
+// Encryption key for AES (should be unique per user, here we use a static key for demo)
+const ENCRYPTION_SECRET = 'gitgenie-super-secret-key'; // You may want to generate/store this securely
+
+function encrypt(text) {
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_SECRET.padEnd(32)), iv);
+  let encrypted = cipher.update(text, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  return iv.toString('hex') + ':' + encrypted;
+}
+
+function decrypt(text) {
+  const [ivHex, encrypted] = text.split(':');
+  const iv = Buffer.from(ivHex, 'hex');
+  const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_SECRET.padEnd(32)), iv);
+  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
+}
+
 function getApiKey() {
   if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
 
   if (fs.existsSync(configFile)) {
     try {
       const config = JSON.parse(fs.readFileSync(configFile, 'utf-8'));
-      return config.GEMINI_API_KEY || null;
+      if (config.GEMINI_API_KEY) {
+        // Decrypt before returning
+        return decrypt(config.GEMINI_API_KEY);
+      }
+      return null;
     } catch {
       return null;
     }
@@ -106,7 +131,7 @@ program
   .action((apikey) => {
     try {
       if (!fs.existsSync(configDir)) fs.mkdirSync(configDir, { recursive: true });
-      fs.writeFileSync(configFile, JSON.stringify({ GEMINI_API_KEY: apikey }, null, 2));
+      fs.writeFileSync(configFile, JSON.stringify({ GEMINI_API_KEY: encrypt(apikey) }, null, 2));
       console.log(chalk.green(' Gemini API key saved successfully!'));
     } catch (err) {
       console.error(chalk.red('❌ Failed to save API key.'));
@@ -309,7 +334,7 @@ async function runMainFlow(desc, opts) {
     let hasCommits = true;
     try {
       await git.revparse(['--verify', 'HEAD']);
-    } catch {
+    } catch (e) {
       hasCommits = false;
     }
 
@@ -388,7 +413,6 @@ async function runMainFlow(desc, opts) {
 
       if (confirmPush) {
         await pushBranch(branchName);
-
         if (branchName !== 'main') {
           const { mergeToMain } = await inquirer.prompt([{
             type: 'confirm',
@@ -396,7 +420,6 @@ async function runMainFlow(desc, opts) {
             message: `Do you want to merge "${branchName}" to main branch and push?`,
             default: false
           }]);
-
           if (mergeToMain) {
             await mergeToMainAndPush(branchName);
           }
@@ -407,7 +430,6 @@ async function runMainFlow(desc, opts) {
         console.log(chalk.gray('Example: git push origin main'));
       }
     }
-
   } catch (err) {
     console.error(chalk.red('Error: ' + err.message));
     console.error(chalk.yellow('Tip: Review the error above and try the suggested command.'));
