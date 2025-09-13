@@ -11,53 +11,148 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
+import keytar from 'keytar';
 
 dotenv.config();
 const git = simpleGit();
+
+// 🔑 Keytar service configuration
+const SERVICE_NAME = "GitGenie";
+const ACCOUNT_NAME = "gemini_api_key";
+const ENCRYPTION_KEY_ACCOUNT = "encryption_key";
 
 // 🔑 Config file path (~/.gitgenie/config.json)
 const configDir = path.join(os.homedir(), '.gitgenie');
 const configFile = path.join(configDir, 'config.json');
 
-// Encryption key for AES (should be unique per user, here we use a static key for demo)
-const ENCRYPTION_SECRET = 'gitgenie-super-secret-key'; // You may want to generate/store this securely
+// Generate or retrieve unique encryption key for this user
+async function getEncryptionKey() {
+  try {
+    // Try to get existing encryption key from keytar
+    let encryptionKey = await keytar.getPassword(SERVICE_NAME, ENCRYPTION_KEY_ACCOUNT);
 
-function encrypt(text) {
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_SECRET.padEnd(32)), iv);
-  let encrypted = cipher.update(text, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-  return iv.toString('hex') + ':' + encrypted;
+    if (!encryptionKey) {
+      // Generate a new random 32-byte key for this user
+      encryptionKey = crypto.randomBytes(32).toString('hex');
+      // Store it securely in keytar
+      await keytar.setPassword(SERVICE_NAME, ENCRYPTION_KEY_ACCOUNT, encryptionKey);
+    }
+
+    return encryptionKey;
+  } catch (error) {
+    // Fallback: generate a unique key based on user's home directory and machine
+    const uniqueData = os.homedir() + os.hostname() + os.userInfo().username;
+    return crypto.createHash('sha256').update(uniqueData).digest('hex');
+  }
 }
 
-function decrypt(text) {
-  const [ivHex, encrypted] = text.split(':');
-  const iv = Buffer.from(ivHex, 'hex');
-  const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_SECRET.padEnd(32)), iv);
-  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-  decrypted += decipher.final('utf8');
-  return decrypted;
+async function encrypt(text) {
+  if (!text || typeof text !== 'string') {
+    throw new Error('Text to encrypt must be a non-empty string');
+  }
+
+  try {
+    const encryptionKey = await getEncryptionKey();
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(encryptionKey, 'hex'), iv);
+    let encrypted = cipher.update(text, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return iv.toString('hex') + ':' + encrypted;
+  } catch (error) {
+    throw new Error(`Encryption failed: ${error.message}`);
+  }
 }
 
-function getApiKey() {
+async function decrypt(text) {
+  if (!text || typeof text !== 'string') {
+    throw new Error('Text to decrypt must be a non-empty string');
+  }
+
+  try {
+    const encryptionKey = await getEncryptionKey();
+
+    // Validate format - must contain exactly one colon
+    const parts = text.split(':');
+    if (parts.length !== 2) {
+      throw new Error('Invalid encrypted data format');
+    }
+
+    const [ivHex, encrypted] = parts;
+
+    // Validate hex strings
+    if (!ivHex || !encrypted || ivHex.length !== 32) {
+      throw new Error('Invalid encrypted data structure');
+    }
+
+    const iv = Buffer.from(ivHex, 'hex');
+    const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(encryptionKey, 'hex'), iv);
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  } catch (error) {
+    throw new Error(`Decryption failed: ${error.message}`);
+  }
+}
+
+async function getApiKey() {
+  // First check environment variable
   if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
 
+  try {
+    // Try to get from keytar (secure storage)
+    const keyFromKeytar = await keytar.getPassword(SERVICE_NAME, ACCOUNT_NAME);
+    if (keyFromKeytar) return keyFromKeytar;
+  } catch (error) {
+    // Keytar failed, continue to config.json fallback
+  }
+
+  // Fallback to config.json (encrypted)
   if (fs.existsSync(configFile)) {
     try {
       const config = JSON.parse(fs.readFileSync(configFile, 'utf-8'));
       if (config.GEMINI_API_KEY) {
-        // Decrypt before returning
-        return decrypt(config.GEMINI_API_KEY);
+        try {
+          // Decrypt before returning (now async with error handling)
+          return await decrypt(config.GEMINI_API_KEY);
+        } catch (decryptError) {
+          // If decryption fails, the config file might be corrupted
+          console.warn(chalk.yellow('⚠ Config file appears corrupted. Please reconfigure your API key.'));
+          return null;
+        }
       }
       return null;
-    } catch {
+    } catch (jsonError) {
+      // If JSON parsing fails, config file is corrupted
       return null;
     }
   }
   return null;
 }
 
-let apiKey = getApiKey();
+async function saveApiKey(apikey) {
+  // Validate input
+  if (!apikey || typeof apikey !== 'string' || apikey.trim().length === 0) {
+    throw new Error('API key must be a non-empty string');
+  }
+
+  const trimmedApiKey = apikey.trim();
+
+  try {
+    // Try to save to keytar first (secure storage)
+    await keytar.setPassword(SERVICE_NAME, ACCOUNT_NAME, trimmedApiKey);
+    return true;
+  } catch (error) {
+    // Keytar failed, fallback to config.json (encrypted)
+    try {
+      if (!fs.existsSync(configDir)) fs.mkdirSync(configDir, { recursive: true });
+      const encryptedKey = await encrypt(trimmedApiKey);
+      fs.writeFileSync(configFile, JSON.stringify({ GEMINI_API_KEY: encryptedKey }, null, 2));
+      return true;
+    } catch (err) {
+      throw new Error(`Failed to save API key: ${err.message}`);
+    }
+  }
+}
 
 const program = new Command();
 
@@ -128,13 +223,13 @@ ${banner}
 program
   .command('config <apikey>')
   .description('Save your Gemini API key for unlocking genie powers ✨')
-  .action((apikey) => {
+  .action(async (apikey) => {
     try {
-      if (!fs.existsSync(configDir)) fs.mkdirSync(configDir, { recursive: true });
-      fs.writeFileSync(configFile, JSON.stringify({ GEMINI_API_KEY: encrypt(apikey) }, null, 2));
-      console.log(chalk.green(' Gemini API key saved successfully!'));
+      await saveApiKey(apikey);
+      console.log(chalk.green('✨ Gemini API key saved successfully!'));
     } catch (err) {
       console.error(chalk.red('❌ Failed to save API key.'));
+      console.error(chalk.yellow(`Error: ${err.message}`));
       console.error(chalk.yellow('Tip: Make sure you have write permissions to your home directory.'));
       console.error(chalk.cyan('Try running: gg config <your_api_key>'));
       console.error(chalk.gray('Example: gg config AIzaSy...'));
@@ -160,6 +255,8 @@ program
 
 /** Generate commit message */
 async function generateCommitMessage(diff, opts, desc) {
+  const apiKey = await getApiKey();
+
   if (!opts.genie || !apiKey) {
     if (opts.genie && !apiKey) {
       console.warn(chalk.yellow('⚠ GEMINI_API_KEY not found. Falling back to manual commit message.'));
@@ -204,6 +301,8 @@ async function generateCommitMessage(diff, opts, desc) {
 }
 
 async function generatePRTitle(diff, opts, desc) {
+  const apiKey = await getApiKey();
+
   if (!opts.genie || !apiKey) {
     if (opts.genie && !apiKey) {
       console.warn(chalk.yellow('⚠ GEMINI_API_KEY not found. Falling back to manual PR title.'));
@@ -247,6 +346,8 @@ async function generatePRTitle(diff, opts, desc) {
 }
 
 async function generateBranchName(diff, opts, desc) {
+  const apiKey = await getApiKey();
+
   if (!opts.genie || !apiKey) {
     // Silently fall back to manual branch naming without warnings
     return `${opts.type}/${desc.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}`;
@@ -289,7 +390,7 @@ async function generateBranchName(diff, opts, desc) {
     }
   } catch (err) {
     spinner.fail('AI branch name generation failed. Using manual name instead.');
-    if (opts.genie && !apiKey) {
+    if (opts.genie) {
       console.error(chalk.yellow('Tip: Check your API key and network connection.'));
       console.error(chalk.cyan('To set your API key: gg config <your_api_key>'));
     }
