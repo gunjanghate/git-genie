@@ -170,8 +170,8 @@ const logo = `
 $$  __$$\ $$  __$$\ 
 $$ /  \__|$$ /  \__|
 $$ |$$$$\ $$ |$$$$\ 
-$$ |\_$$ |$$ |\_$$ |
-$$ |  $$ |$$ |  $$ |
+$$ | \_$$ |$$ |\_$$ |
+$$ |  $$ |$$ | $$ |
 \$$$$$$  |\$$$$$$  |
  \______/  \______/  
 `;
@@ -245,6 +245,7 @@ program
   .option('--type <type>', 'Commit type', 'feat')
   .option('--scope <scope>', 'Commit scope', '')
   .option('--genie', 'Enable AI commit message generation using Gemini')
+  .option('--osc', 'Open source contribution branch format')
   .option('--no-branch', 'Skip interactive branch choice and commit to main')
   .option('--push-to-main', 'Automatically merge current branch to main and push')
   .option('--remote <url>', 'Add remote origin if repo is new')
@@ -554,15 +555,36 @@ async function runMainFlow(desc, opts) {
       }]);
 
       if (branchChoice === 'new') {
-        // Generate branch name - AI if --genie flag is used, manual otherwise
         let suggestedBranch;
-        if (opts.genie) {
-          // Get current unstaged diff for AI analysis
-          const unstagedDiff = await git.diff() || desc;
-          suggestedBranch = await generateBranchName(unstagedDiff, opts, desc);
+        let shortTitle = desc;
+        // Open source contribution flow
+        if (opts.osc) {
+          // Prompt for issue number
+          const { issueNumber } = await inquirer.prompt([{
+            type: 'input',
+            name: 'issueNumber',
+            message: 'Enter issue number (e.g. 123):',
+            validate: input => /^\d+$/.test(input) ? true : 'Issue number must be numeric'
+          }]);
+          // Generate short title
+          if (opts.genie) {
+            // Use Gemini to generate short title
+            const unstagedDiff = await git.diff() || desc;
+            shortTitle = await generateBranchName(unstagedDiff, opts, desc);
+            // Only use the last part after slash for short title
+            if (shortTitle.includes('/')) shortTitle = shortTitle.split('/')[1];
+          } else {
+            shortTitle = desc.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '');
+          }
+          suggestedBranch = `${opts.type}/#${issueNumber}-${shortTitle}`;
         } else {
-          // Manual branch naming (current behavior)
-          suggestedBranch = `${opts.type}/${desc.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}`;
+          // Non-OSC flow
+          if (opts.genie) {
+            const unstagedDiff = await git.diff() || desc;
+            suggestedBranch = await generateBranchName(unstagedDiff, opts, desc);
+          } else {
+            suggestedBranch = `${opts.type}/${desc.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}`;
+          }
         }
 
         const { newBranchName } = await inquirer.prompt([{
