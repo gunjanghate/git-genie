@@ -74,6 +74,7 @@ GEMINI_API_KEY=your_api_key_here
 - Validates Git repository existence and initializes if needed
 - Automatic file staging with progress feedback
 - AI-powered commit message generation using Google Gemini
+- Open source contribution workflow with --osc flag (issue-based branch naming)
 - Interactive branch management with auto-suggestions
 - Automated merge-to-main workflows
 - Retry logic for network operations
@@ -100,6 +101,7 @@ gg config <api-key>    # Save Gemini API key for persistent use
 - `--type <type>`: Commit type (default: `feat`)
 - `--scope <scope>`: Optional scope for commit message
 - `--genie`: Enable AI commit message generation using Google Gemini
+- `--osc`: Open source contribution branch format (prompts for issue number, branch name: type/#issue-shorttitle)
 - `--no-branch`: Skip interactive branch choice and commit to main
 - `--push-to-main`: Automatically merge current branch to main and push
 - `--remote <url>`: Add remote origin if repo is new
@@ -204,6 +206,14 @@ GitGenie Project/
 
 ### 10. Example Usage & Sample Commands
 
+# Open source contribution branch (manual short title)
+
+node index.js "fix login bug" --osc
+
+# Open source contribution branch (AI short title)
+
+node index.js "fix login bug" --osc --genie
+
 #### Basic Usage:
 
 ```powershell
@@ -292,6 +302,7 @@ node index.js "fix typo in README" --no-branch
 3. Adds remote origin if provided.
 4. Checks for existing commits.
 5. Prompts the user to choose the branch (interactive) or commits directly to main if `--no-branch`.
+   - If `--osc` is used and new branch is selected, prompts for issue number and generates branch name as `type/#issue-shorttitle` (shorttitle by Gemini if --genie, otherwise from message)
 6. Stages all files if needed.
 7. Generates commit message (AI with `--genie` flag or manual by default).
 8. Commits the changes.
@@ -321,6 +332,7 @@ node index.js "fix typo in README" --no-branch
 
 ✅ **Automated Git Workflows** - Reduces manual Git command typing  
 ✅ **AI-Generated Commit Messages** - Professional, contextual commit messages  
+✅ **Open Source Contribution Helper** - Issue-based branch naming for open source PRs  
 ✅ **Interactive Branch Management** - User-friendly branch creation and switching  
 ✅ **Smart Error Handling** - Graceful fallbacks and retry mechanisms  
 ✅ **Professional Formatting** - Conventional Commit standards  
@@ -359,6 +371,12 @@ node index.js "test refactoring" --type refactor
 ---
 
 ## Notes & Future Considerations
+
+- Add interactive guided mode for beginners (e.g., --wizard)
+- Add command autocomplete and suggestions
+- Add onboarding welcome for first-time users
+- Add undo/redo for git actions
+- Add more help and examples in CLI output
 
 - Can implement **last-used branch suggestion** for faster workflow.
 - Optional integration with other AI models for commit suggestions.
