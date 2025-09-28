@@ -218,7 +218,6 @@ ${banner}
     );
   }
 });
-
 //  Config command as a subcommand
 program
   .command('config <apikey>')
