@@ -239,16 +239,16 @@ program
 // Branch management shortcuts
 program
   .command('b <branchName>')
-  .description('Create and switch to a new branch (shortcut for git checkout -b)')
-  .action(async (branchName) => {
+  .description('Create and switch to a new branch')
+  .action(async (branchName, options) => { // options is the last argument
     try {
       await git.checkoutLocalBranch(branchName);
-      console.log(chalk.green(` Created and switched to branch "${branchName}"`));
+      console.log(chalk.green(`Created and switched to branch "${branchName}"`));
     } catch (err) {
-      console.error(chalk.red(` Failed to create branch "${branchName}"`));
+      console.error(chalk.red(`Failed to create branch "${branchName}": ${err.message}`));
     }
-    process.exit(0);
   });
+
 
 program
   .command('s <branchName>')
