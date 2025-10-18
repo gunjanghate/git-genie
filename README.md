@@ -83,6 +83,32 @@ GEMINI_API_KEY=your_api_key_here
 
 ## CLI Commands and Options
 
+### Branch Management Shortcuts
+
+GitGenie now includes convenient shortcut commands for branch management and worktree operations:
+
+- `gg b <branchName>`: Create and switch to a new branch (shortcut for `git checkout -b <branchName>`)
+- `gg s <branchName>`: Switch to an existing branch (shortcut for `git checkout <branchName>`)
+- `gg wt <branchName> [path] [start]`: Create a worktree for a branch (auto-creates branch if it doesn’t exist, optionally specify path and start-point)
+
+#### Examples:
+
+```bash
+# Create and switch to a new branch
+node index.js b feature/new-ui
+
+# Switch to an existing branch
+node index.js s main
+
+# Create a worktree for a branch (default path, base: main)
+node index.js wt pr2
+
+# Create a worktree for a branch at a custom path, from a specific start-point
+node index.js wt pr2 ../pr2-folder main
+```
+
+These shortcuts make branch and worktree management faster and easier, especially for advanced workflows and multi-branch development.
+
 ### Main Command
 
 ```bash

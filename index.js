@@ -13,7 +13,7 @@ import path from 'path';
 import crypto from 'crypto';
 import keytar from 'keytar';
 
-dotenv.config();
+dotenv.config({ debug: false });
 const git = simpleGit();
 
 // 🔑 Keytar service configuration
@@ -160,20 +160,20 @@ const program = new Command();
 const banner = `
     ${chalk.cyan("🔮")} ${chalk.magentaBright("Git")}${chalk.yellow("Genie")} ${chalk.cyan("🔮")}
     ${chalk.gray("┌─────────────────┐")}
-    ${chalk.gray("│")} ${chalk.green("✨ AI-Powered Git ✨")} ${chalk.gray("│")}
-    ${chalk.gray("│")} ${chalk.blue("Smart Commit Magic")} ${chalk.gray("│")}
+    ${chalk.gray("│")} ${chalk.green("✨ AI-Powered Git ✨")}
+    ${chalk.gray("│")} ${chalk.blue("Smart Commit Magic")} 
     ${chalk.gray("└─────────────────┘")}
        ${chalk.yellow("⚡")} ${chalk.red("Ready to code!")} ${chalk.yellow("⚡")}
 `;
 const logo = `
- $$$$$$\   $$$$$$\  
-$$  __$$\ $$  __$$\ 
-$$ /  \__|$$ /  \__|
-$$ |$$$$\ $$ |$$$$\ 
-$$ | \_$$ |$$ |\_$$ |
-$$ |  $$ |$$ | $$ |
-\$$$$$$  |\$$$$$$  |
- \______/  \______/  
+   $$$$$$\   $$$$$$\  
+  $$  __$$\ $$  __$$\ 
+  $$ /  \__|$$ /  \__|
+  $$ |$$$$\ $$ |$$$$\ 
+  $$ | \_$$ $$ | \_$$|
+  $$ |  $$ $$ |  $$|
+   $$$$$$  \$$$$$$  |
+    \______/  \______/  
 `;
 
 // Show banner/logo on help output
@@ -227,7 +227,7 @@ program
       await saveApiKey(apikey);
       console.log(chalk.green('✨ Gemini API key saved successfully!'));
     } catch (err) {
-      console.error(chalk.red('❌ Failed to save API key.'));
+      console.error(chalk.red(' Failed to save API key.'));
       console.error(chalk.yellow(`Error: ${err.message}`));
       console.error(chalk.yellow('Tip: Make sure you have write permissions to your home directory.'));
       console.error(chalk.cyan('Try running: gg config <your_api_key>'));
@@ -235,6 +235,59 @@ program
     }
     process.exit(0);
   });
+
+// Branch management shortcuts
+program
+  .command('b <branchName>')
+  .description('Create and switch to a new branch (shortcut for git checkout -b)')
+  .action(async (branchName) => {
+    try {
+      await git.checkoutLocalBranch(branchName);
+      console.log(chalk.green(` Created and switched to branch "${branchName}"`));
+    } catch (err) {
+      console.error(chalk.red(` Failed to create branch "${branchName}"`));
+    }
+    process.exit(0);
+  });
+
+program
+  .command('s <branchName>')
+  .description('Switch to an existing branch')
+  .action(async (branchName) => {
+    try {
+      await git.checkout(branchName);
+      console.log(chalk.green(` Switched to branch "${branchName}"`));
+    } catch (err) {
+      console.error(chalk.red(` Failed to switch to branch "${branchName}"`));
+    }
+    process.exit(0);
+  });
+
+program
+  .command('wt <branchName> [path] [start]')
+  .description('Create a worktree for a branch (auto-create if branch doesn’t exist)')
+  .action(async (branchName, pathArg, startPoint) => {
+    try {
+      const wtPath = pathArg || path.join(process.cwd(), branchName);
+      const branches = await git.branchLocal();
+
+      if (branches.all.includes(branchName)) {
+        // Branch exists → just add worktree
+        await git.raw(['worktree', 'add', wtPath, branchName]);
+      } else {
+        // Branch doesn't exist → create it from start-point (default: main)
+        const base = startPoint || 'main';
+        await git.raw(['worktree', 'add', wtPath, '-b', branchName, base]);
+      }
+
+      console.log(chalk.green(`✅ Worktree created at "${wtPath}" for branch "${branchName}"`));
+    } catch (err) {
+      console.error(chalk.red(`❌ Failed to create worktree for "${branchName}"`));
+      console.error(chalk.red(err.message));
+    }
+    process.exit(0);
+  });
+
 
 // ⚡ Main program configuration
 program
@@ -248,7 +301,7 @@ program
   .option('--no-branch', 'Skip interactive branch choice and commit to main')
   .option('--push-to-main', 'Automatically merge current branch to main and push')
   .option('--remote <url>', 'Add remote origin if repo is new')
-  .action(async (desc, opts) => {
+    .action(async (desc, opts) => {
     // Move all the main logic here
     await runMainFlow(desc, opts);
   });
