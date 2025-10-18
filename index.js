@@ -238,55 +238,48 @@ program
 
 // Branch management shortcuts
 program
-  .command('b <branchName>')
-  .description('Create and switch to a new branch')
-  .action(async (branchName, options) => { // options is the last argument
+  .command('b')
+  .argument('<branchName>', 'Name of the branch to create and switch to')
+  .allowUnknownOption(true) // Ignores dotenv & commander meta args
+  .action(async (branchName, _unknown) => {
     try {
       await git.checkoutLocalBranch(branchName);
-      console.log(chalk.green(`Created and switched to branch "${branchName}"`));
+      console.log(chalk.green(`✅ Created and switched to branch "${branchName}"`));
     } catch (err) {
-      console.error(chalk.red(`Failed to create branch "${branchName}": ${err.message}`));
+      console.error(chalk.red(`❌ Failed to create branch "${branchName}": ${err.message}`));
     }
   });
 
 
 program
-  .command('s <branchName>')
-  .description('Switch to an existing branch')
-  .action(async (branchName) => {
+  .command('s')
+  .argument('<branchName>', 'Branch to switch to')
+  .allowUnknownOption(true)
+  .action(async (branchName, _unknown) => {
     try {
       await git.checkout(branchName);
-      console.log(chalk.green(` Switched to branch "${branchName}"`));
+      console.log(chalk.green(`✅ Switched to branch "${branchName}"`));
     } catch (err) {
-      console.error(chalk.red(` Failed to switch to branch "${branchName}"`));
+      console.error(chalk.red(`❌ Failed to switch to "${branchName}": ${err.message}`));
     }
-    process.exit(0);
   });
+
 
 program
-  .command('wt <branchName> [path] [start]')
-  .description('Create a worktree for a branch (auto-create if branch doesn’t exist)')
-  .action(async (branchName, pathArg, startPoint) => {
+  .command('wt')
+  .argument('<branchName>', 'Branch to create worktree from')
+  .argument('[path]', 'Optional path for worktree')
+  .allowUnknownOption(true)
+  .action(async (branchName, pathArg, _unknown) => {
     try {
       const wtPath = pathArg || path.join(process.cwd(), branchName);
-      const branches = await git.branchLocal();
-
-      if (branches.all.includes(branchName)) {
-        // Branch exists → just add worktree
-        await git.raw(['worktree', 'add', wtPath, branchName]);
-      } else {
-        // Branch doesn't exist → create it from start-point (default: main)
-        const base = startPoint || 'main';
-        await git.raw(['worktree', 'add', wtPath, '-b', branchName, base]);
-      }
-
+      await git.raw(['worktree', 'add', wtPath, branchName]);
       console.log(chalk.green(`✅ Worktree created at "${wtPath}" for branch "${branchName}"`));
     } catch (err) {
-      console.error(chalk.red(`❌ Failed to create worktree for "${branchName}"`));
-      console.error(chalk.red(err.message));
+      console.error(chalk.red(`❌ Failed to create worktree for "${branchName}": ${err.message}`));
     }
-    process.exit(0);
   });
+
 
 
 // ⚡ Main program configuration
