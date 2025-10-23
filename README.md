@@ -89,7 +89,8 @@ GitGenie now includes convenient shortcut commands for branch management and wor
 
 - `gg b <branchName>`: Create and switch to a new branch (shortcut for `git checkout -b <branchName>`)
 - `gg s <branchName>`: Switch to an existing branch (shortcut for `git checkout <branchName>`)
-- `gg wt <branchName> [path] [start]`: Create a worktree for a branch (auto-creates branch if it doesn’t exist, optionally specify path and start-point)
+- `gg wt <branchName> [path] [start]`: Create a worktree for a branch (auto-creates branch if it doesn't exist, optionally specify path and start-point)
+- `gg cl <repoUrl> [directory]`: Clone a repository (shortcut for `git clone <repoUrl> [directory]`)
 
 #### Examples:
 
@@ -105,6 +106,12 @@ node index.js wt pr2
 
 # Create a worktree for a branch at a custom path, from a specific start-point
 node index.js wt pr2 ../pr2-folder main
+
+# Clone a repository
+node index.js clone https://github.com/username/repo.git
+
+# Clone a repository to a specific directory
+node index.js clone https://github.com/username/repo.git my-custom-folder
 ```
 
 These shortcuts make branch and worktree management faster and easier, especially for advanced workflows and multi-branch development.

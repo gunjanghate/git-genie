@@ -280,6 +280,32 @@ program
     }
   });
 
+program
+  .command('cl')
+  .argument('<repoUrl>', 'Repository URL to clone')
+  .argument('[directory]', 'Optional directory name for the cloned repository')
+  .allowUnknownOption(true)
+  .action(async (repoUrl, directory, _unknown) => {
+    try {
+      const spinner = ora('📥 Cloning repository...').start();
+
+      if (directory) {
+        await git.clone(repoUrl, directory);
+        spinner.succeed(`✅ Repository cloned to "${directory}"`);
+        console.log(chalk.cyan(`Tip: Navigate to the directory with: cd ${directory}`));
+      } else {
+        await git.clone(repoUrl);
+        // Extract repo name from URL for display
+        const repoName = repoUrl.split('/').pop().replace('.git', '');
+        spinner.succeed(`✅ Repository cloned to "${repoName}"`);
+        console.log(chalk.cyan(`Tip: Navigate to the directory with: cd ${repoName}`));
+      }
+    } catch (err) {
+      console.error(chalk.red(`❌ Failed to clone repository: ${err.message}`));
+      console.error(chalk.yellow('Tip: Make sure the repository URL is valid and you have access.'));
+    }
+  });
+
 
 
 // ⚡ Main program configuration
@@ -294,7 +320,7 @@ program
   .option('--no-branch', 'Skip interactive branch choice and commit to main')
   .option('--push-to-main', 'Automatically merge current branch to main and push')
   .option('--remote <url>', 'Add remote origin if repo is new')
-    .action(async (desc, opts) => {
+  .action(async (desc, opts) => {
     // Move all the main logic here
     await runMainFlow(desc, opts);
   });
