@@ -1,54 +1,31 @@
-name: CD
+name: Release
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
-    
-permissions:
-  contents: write
-  packages: write
-  id-token: write
-
+  push:
+    branches: ["main"]
 
 jobs:
   release:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false  # crucial
-          fetch-depth: 0  # semantic-release needs full history
+      - uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24.x
-          registry-url: https://registry.npmjs.org/
+          node-version: 22.x 
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Install semantic-release
+      - name: Configure npm authentication
         run: |
-          npm install --save-dev semantic-release \
-            @semantic-release/npm \
-            @semantic-release/git \
-            @semantic-release/github \
-            @semantic-release/commit-analyzer \
-            @semantic-release/release-notes-generator
-
-      - name: Configure Git for semantic-release
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-      - name: Run semantic-release
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }} 
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npx semantic-release
