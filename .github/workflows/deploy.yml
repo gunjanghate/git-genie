@@ -43,6 +43,6 @@ jobs:
       - name: Run semantic-release
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }} # ensure both aliases exist
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }} 
           NPM_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
         run: npx semantic-release
