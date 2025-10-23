@@ -4,12 +4,11 @@ on:
   workflow_run:
     workflows: ["CI"]
     types: [completed]
-    
+
 permissions:
   contents: write
   packages: write
   id-token: write
-
 
 jobs:
   release:
@@ -20,8 +19,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          persist-credentials: false  # crucial
-          fetch-depth: 0  # semantic-release needs full history
+          persist-credentials: false
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -32,15 +31,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install semantic-release
-        run: |
-          npm install --save-dev semantic-release \
-            @semantic-release/npm \
-            @semantic-release/git \
-            @semantic-release/github \
-            @semantic-release/commit-analyzer \
-            @semantic-release/release-notes-generator
-
       - name: Configure Git for semantic-release
         run: |
           git config --global user.name "github-actions[bot]"
@@ -48,8 +38,6 @@ jobs:
 
       - name: Run semantic-release
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }} 
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          # updated token type
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}  # GitHub releases
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}   # npm publishing
         run: npx semantic-release
