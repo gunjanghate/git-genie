@@ -28,13 +28,13 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24.x
+          node-version: 20.x
           registry-url: https://registry.npmjs.org/
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Configure Git for semantic-release
+      - name: Configure Git user
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -46,9 +46,36 @@ jobs:
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Run semantic-release
+      - name: Determine release type
+        id: reltype
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          echo "Last commit: $COMMIT_MSG"
+          
+          if [[ "$COMMIT_MSG" == rls:p* ]]; then
+            echo "release_type=patch" >> $GITHUB_OUTPUT
+          elif [[ "$COMMIT_MSG" == rls:mn* ]]; then
+            echo "release_type=minor" >> $GITHUB_OUTPUT
+          elif [[ "$COMMIT_MSG" == rls:mj* ]]; then
+            echo "release_type=major" >> $GITHUB_OUTPUT
+          else
+            echo "No valid release prefix found. Skipping release."
+            echo "release_type=none" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Bump npm version
+        if: ${{ steps.reltype.outputs.release_type != 'none' }}
+        run: npm version ${{ steps.reltype.outputs.release_type }} --no-git-tag-version
+
+      - name: Commit and push version bump
+        if: ${{ steps.reltype.outputs.release_type != 'none' }}
+        run: |
+          git add package.json package-lock.json
+          git commit -m "chore(release): bump version [${{ steps.reltype.outputs.release_type }}]"
+          git push
+
+      - name: Publish to npm
+        if: ${{ steps.reltype.outputs.release_type != 'none' }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npx semantic-release
+        run: npm publish --access public
