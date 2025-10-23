@@ -35,6 +35,6 @@ jobs:
 
       - name: Publish to npm
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            GITHUB_TOKEN: ${{ secrets.GT_PAT }}
+            NPM_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
         run: npx semantic-release
