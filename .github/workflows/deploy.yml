@@ -51,4 +51,5 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT }}
           GITHUB_TOKEN: ${{ secrets.GH_PAT }} 
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # updated token type
         run: npx semantic-release
