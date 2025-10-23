@@ -36,5 +36,6 @@ jobs:
       - name: Publish to npm
         env:
             GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+            # regenrated new token
             NPM_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
         run: npx semantic-release
