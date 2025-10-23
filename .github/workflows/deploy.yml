@@ -4,6 +4,12 @@ on:
   workflow_run:
     workflows: ["CI"]
     types: [completed]
+    
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
 
 jobs:
   release:
