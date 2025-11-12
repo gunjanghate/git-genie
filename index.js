@@ -743,6 +743,7 @@ async function runMainFlow(desc, opts) {
     // Auto detect commit type if user didn't pass one and not using AI
     console.log("Before commit message generation, opts:", opts);
     if (!opts.type && !opts.genie) {
+      console.log("Detecting commit type...");
       opts.type = await detectCommitType();
       console.log(`🧠 Auto-detected commit type: ${opts.type}`);
     }
