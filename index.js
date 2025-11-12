@@ -14,6 +14,7 @@ import path from 'path';
 import crypto from 'crypto';
 import keytar from 'keytar';
 import { openCommandPalette } from './helpers/commandPalette.js';
+import { detectCommitType } from './helpers/detectCommitType.js';
 
 dotenv.config({ debug: false });
 const git = simpleGit();
@@ -279,7 +280,7 @@ program.command('cl')
 program
   .command("commit <desc>")
   .description("Commit changes with AI & smart options")
-  .option('--type <type>', 'Commit type', 'feat')
+  .option('--type <type>', 'Commit type', 'change')
   .option('--scope <scope>', 'Commit scope', '')
   .option('--genie', 'AI commit message')
   .option('--osc', 'Open-source branch mode')
@@ -293,7 +294,7 @@ program
 // Register legacy shorthand commit logic rewritten
 program
   .argument('[desc]')
-  .option('--type <type>', 'Commit type', 'feat')
+  .option('--type <type>', 'Commit type', 'change')
   .option('--scope <scope>', 'Commit scope', '')
   .option('--genie', 'AI mode')
   .option('--osc', 'OSS branch mode')
@@ -739,6 +740,11 @@ async function runMainFlow(desc, opts) {
     }
 
     // 6️⃣ Generate commit message
+    // Auto detect commit type if user didn't pass one and not using AI
+    if (!opts.type && !opts.genie) {
+      opts.type = await detectCommitType();
+      console.log(`🧠 Auto-detected commit type: ${opts.type}`);
+    }
     const commitMessage = await generateCommitMessage(diff, opts, desc);
 
     // 7️⃣ Commit
