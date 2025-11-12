@@ -7,11 +7,13 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import inquirer from 'inquirer';
+import { execaCommand } from 'execa';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
 import keytar from 'keytar';
+import { openCommandPalette } from './helpers/commandPalette.js';
 
 dotenv.config({ debug: false });
 const git = simpleGit();
@@ -297,8 +299,21 @@ program
         await git.clone(repoUrl);
         // Extract repo name from URL for display
         const repoName = repoUrl.split('/').pop().replace('.git', '');
-        spinner.succeed(`✅ Repository cloned to "${repoName}"`);
-        console.log(chalk.cyan(`Tip: Navigate to the directory with: cd ${repoName}`));
+        const targetDir = directory || repoName;
+        spinner.succeed(`✅ Repository cloned to "${targetDir}"`);
+
+        // Try to open the cloned repo in VS Code if available. Use execa to run `code .` in the target dir.
+        try {
+          await execaCommand('code .', { cwd: path.join(process.cwd(), targetDir) });
+          console.log(chalk.green(`✅ Opened "${targetDir}" in VS Code`));
+        } catch (err) {
+          // If 'code' isn't available on PATH or fails, provide a helpful fallback tip
+          console.log(chalk.yellow('⚠ VS Code command (`code`) not found or failed to open.'));
+          console.log(chalk.cyan(`Tip: Navigate to the directory and open it manually:`));
+          console.log(chalk.gray(`  cd ${targetDir} && code .`));
+        }
+
+        console.log(chalk.cyan(`Tip: Navigate to the directory with: cd ${targetDir}`));
       }
     } catch (err) {
       console.error(chalk.red(`❌ Failed to clone repository: ${err.message}`));
@@ -308,11 +323,10 @@ program
 
 
 
-// ⚡ Main program configuration
+// ⚡ Main program configuration (Commit command for menu support)
 program
-  .name('gg')
-  .description('GitGenie: Generate and manage commits with AI')
-  .argument('<desc>', 'Short description of the change')
+  .command("commit <desc>")
+  .description("Commit changes with optional AI support")
   .option('--type <type>', 'Commit type', 'feat')
   .option('--scope <scope>', 'Commit scope', '')
   .option('--genie', 'Enable AI commit message generation using Gemini')
@@ -321,9 +335,46 @@ program
   .option('--push-to-main', 'Automatically merge current branch to main and push')
   .option('--remote <url>', 'Add remote origin if repo is new')
   .action(async (desc, opts) => {
-    // Move all the main logic here
     await runMainFlow(desc, opts);
   });
+
+// Legacy direct commit syntax: gg "message"
+program
+  .argument('<desc>', 'Commit message')
+  .option('--type <type>', 'Commit type', 'feat')
+  .option('--scope <scope>', 'Commit scope', '')
+  .option('--genie', 'Enable AI commit message')
+  .option('--osc', 'Open source contribution branch format')
+  .option('--no-branch', 'Skip interactive branch')
+  .option('--push-to-main', 'Merge to main then push')
+  .option('--remote <url>')
+  .action(async (desc, opts) => {
+    await runMainFlow(desc, opts);
+  });
+
+// Smart routing before parsing commands
+const firstArg = process.argv[2];
+const knownCommands = program.commands.map(c => c._name);
+
+// If user typed `gg message` and not a command → treat as commit message
+if (
+  firstArg &&
+  !knownCommands.includes(firstArg) &&
+  !firstArg.startsWith("-")
+) {
+  await runMainFlow(firstArg, {});
+  process.exit(0);
+}
+
+// No args = open menu
+if (!process.argv.slice(2).length) {
+  await openCommandPalette(program);
+  process.exit(0);
+}
+
+// Parse CLI args normally
+program.parse(process.argv);
+
 
 /** Generate commit message */
 async function generateCommitMessage(diff, opts, desc) {
@@ -491,7 +542,8 @@ async function pushBranch(branchName) {
   let attempt = 0;
   while (attempt <= maxRetries) {
     try {
-      await git.push('origin', branchName);
+      // Use -u to set upstream on first push as well
+      await git.push(['-u', 'origin', branchName]);
       spinner.succeed(`Successfully pushed branch "${branchName}"`);
       return;
     } catch (err) {
@@ -506,6 +558,47 @@ async function pushBranch(branchName) {
         spinner.warn(`Push failed. Retrying... (${attempt}/${maxRetries})`);
       }
     }
+  }
+}
+
+/** Ensure a remote origin exists, optionally prompt user to add one */
+async function ensureRemoteOriginInteractive() {
+  try {
+    const remotes = await git.getRemotes(true);
+    const hasOrigin = remotes.some(r => r.name === 'origin');
+    if (hasOrigin) return true;
+
+    console.log(chalk.yellow('ℹ No remote "origin" configured.'));
+    const { wantRemote } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'wantRemote',
+        message: 'Would you like to add a remote origin now?',
+        default: true
+      }
+    ]);
+
+    if (!wantRemote) return false;
+
+    const { remoteUrl } = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'remoteUrl',
+        message: 'Enter remote origin URL (e.g. https://github.com/user/repo.git):',
+        validate: (v) => v && v.startsWith('http') || v.startsWith('git@') ? true : 'Please enter a valid Git remote URL'
+      }
+    ]);
+
+    try {
+      await git.remote(['add', 'origin', remoteUrl]);
+      console.log(chalk.green(`✅ Remote origin set to ${remoteUrl}`));
+      return true;
+    } catch {
+      console.log(chalk.red('❌ Failed to add remote origin.'));
+      return false;
+    }
+  } catch {
+    return false;
   }
 }
 
@@ -532,9 +625,15 @@ async function mergeToMainAndPush(currentBranch) {
     await git.merge([currentBranch]);
     spinner3.succeed(`Successfully merged "${currentBranch}" into main`);
 
+    // Ensure remote before pushing
+    const hasRemote = await ensureRemoteOriginInteractive();
     const spinner4 = ora('🚀 Pushing main branch to remote...').start();
-    await git.push('origin', 'main');
-    spinner4.succeed('Successfully pushed main branch');
+    if (!hasRemote) {
+      spinner4.warn('No remote configured. Skipping push of main.');
+    } else {
+      await git.push(['-u', 'origin', 'main']);
+      spinner4.succeed('Successfully pushed main branch');
+    }
 
     const { cleanupBranch } = await inquirer.prompt([{
       type: 'confirm',
@@ -709,7 +808,12 @@ async function runMainFlow(desc, opts) {
       }]);
 
       if (confirmPush) {
-        await pushBranch(branchName);
+        const hasRemote = await ensureRemoteOriginInteractive();
+        if (!hasRemote) {
+          console.log(chalk.yellow('⚠ Skipping push because no remote is configured.'));
+        } else {
+          await pushBranch(branchName);
+        }
         if (branchName !== 'main') {
           const { mergeToMain } = await inquirer.prompt([{
             type: 'confirm',
@@ -734,6 +838,3 @@ async function runMainFlow(desc, opts) {
     process.exit(1);
   }
 }
-
-// Parse arguments
-program.parse(process.argv);
