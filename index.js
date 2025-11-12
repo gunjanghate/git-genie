@@ -304,7 +304,7 @@ program
     const first = process.argv[2];
 
     // 🚫 If first arg is a known subcommand, do nothing here
-    if (['commit','b','s','wt','cl','config'].includes(first)) return;
+    if (['commit', 'b', 's', 'wt', 'cl', 'config'].includes(first)) return;
 
     // No args → open menu
     if (!desc) {
@@ -746,9 +746,30 @@ async function runMainFlow(desc, opts) {
     console.log(chalk.green(`Committed changes with message: "${commitMessage}"`));
 
     // 8️⃣ Push logic
-    if (opts.pushToMain && branchName !== 'main') {
-      await mergeToMainAndPush(branchName);
+    if (opts.pushToMain) {
+      // If user asked to push to main automatically
+      if (branchName === 'main') {
+        // Already on main → just push
+        const hasRemote = await ensureRemoteOriginInteractive();
+        if (!hasRemote) {
+          console.log(chalk.yellow('⚠ No remote configured. Skipping push.'));
+        } else {
+          const spinner = ora(`🚀 Pushing main branch...`).start();
+          try {
+            await git.push(['-u', 'origin', 'main']);
+            spinner.succeed(`✅ Pushed main successfully`);
+          } catch (err) {
+            spinner.fail(`❌ Failed to push main`);
+            throw err;
+          }
+        }
+      } else {
+        // On feature branch → merge to main & push
+        await mergeToMainAndPush(branchName);
+      }
+
     } else {
+      // 🧠 Interactive mode (normal flow)
       const { confirmPush } = await inquirer.prompt([{
         type: 'confirm',
         name: 'confirmPush',
@@ -763,6 +784,7 @@ async function runMainFlow(desc, opts) {
         } else {
           await pushBranch(branchName);
         }
+
         if (branchName !== 'main') {
           const { mergeToMain } = await inquirer.prompt([{
             type: 'confirm',
@@ -776,10 +798,10 @@ async function runMainFlow(desc, opts) {
         }
       } else {
         console.log(chalk.yellow('Push skipped.'));
-        console.log(chalk.cyan('Tip: To push manually, run: git push origin <branch>'));
-        console.log(chalk.gray('Example: git push origin main'));
+        console.log(chalk.cyan(`To push manually: git push origin ${branchName}`));
       }
     }
+
   } catch (err) {
     console.error(chalk.red('Error: ' + err.message));
     console.error(chalk.yellow('Tip: Review the error above and try the suggested command.'));
