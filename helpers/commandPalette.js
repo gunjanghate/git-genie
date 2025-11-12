@@ -2,21 +2,77 @@ import inquirer from "inquirer";
 import chalk from "chalk";
 import { spawn } from "node:child_process";
 
+// Fancy header (logo + banner) to show at the top of the palette
+const banner = `
+        ${chalk.cyan("🔮")} ${chalk.magentaBright("Git")}${chalk.yellow("Genie")} ${chalk.cyan("🔮")}
+        ${chalk.gray("┌─────────────────┐")}
+        ${chalk.gray("│")} ${chalk.green("✨ AI-Powered Git ✨")}
+        ${chalk.gray("│")} ${chalk.blue("Smart Commit Magic")} 
+        ${chalk.gray("└─────────────────┘")}
+             ${chalk.yellow("⚡")} ${chalk.red("Ready to code!")} ${chalk.yellow("⚡")}
+`;
+const logo = `
+     $$$$$$\   $$$$$$\  
+    $$  __$$\ $$  __$$\ 
+    $$ /  \__|$$ /  \__|
+    $$ |$$$$\ $$ |$$$$\ 
+    $$ | \_$$ $$ | \_$$|
+    $$ |  $$ $$ |  $$|
+     $$$$$$  \\$$$$$$ |
+      \______/\______/  
+`;
+
+function showHeader() {
+    // Clear the screen to avoid any duplicate banner fragments from previous renders
+    if (typeof console.clear === 'function') console.clear();
+    const sep = chalk.gray("────────────────────────────────────────────────────────────");
+    // Print header once
+    console.log(chalk.cyan(logo));
+    console.log(banner);
+    console.log(sep);
+    console.log(chalk.bold("GitGenie Command Palette"));
+    console.log(chalk.dim("Use ↑/↓ to navigate, Enter to select, Esc/Ctrl+C to cancel"));
+    console.log(sep);
+}
+
 // A simpler palette that synthesizes a commit wizard and prompts args for known commands
 export async function openCommandPalette(program) {
+    // Header & intro
+    showHeader();
+
     // Exclude any built-in/unknown and any conflicting 'commit' command so we control the UX
     const realCommands = program.commands.filter(c => c._name !== '*' && c._name !== 'commit');
     const choices = [
-        { name: 'commit — Commit changes with optional AI support', value: '__commit__' },
-        ...realCommands.map(c => ({ name: `${c._name} — ${c._description || ''}`.trim(), value: c._name }))
+        new inquirer.Separator(chalk.gray('— Actions —')),
+        { name: chalk.green('commit') + chalk.gray(' — Commit changes with optional AI support'), value: '__commit__' },
+        ...realCommands.map(c => ({ name: chalk.yellow(c._name) + (c._description ? chalk.gray(` — ${c._description}`) : ''), value: c._name })),
+        new inquirer.Separator(),
+        { name: chalk.red('Exit') + chalk.gray(' — Quit without running a command'), value: '__exit__' }
     ];
 
-    let { selected } = await inquirer.prompt([
-        { type: 'list', name: 'selected', message: chalk.magenta('✨ What would you like to do?'), pageSize: 12, choices }
-    ]);
+    let selected;
+    try {
+        const ans = await inquirer.prompt([
+            { type: 'list', name: 'selected', message: chalk.magenta('✨ What would you like to do?'), pageSize: 12, choices }
+        ]);
+        selected = ans.selected;
+    } catch (err) {
+        // User cancelled (Esc/Ctrl+C) or TTY error
+        console.log("\n" + chalk.yellow('✋ Exited the command palette.'));
+        console.log(chalk.cyan('Tip: Run ') + chalk.magenta('gg') + chalk.cyan(' again anytime.'));
+        return;
+    }
+    if (!selected) {
+        console.log("\n" + chalk.yellow('No selection made. Exiting.'));
+        return;
+    }
 
     // If a real command named 'commit' exists and gets selected, route it to our wizard
     if (selected === 'commit') selected = '__commit__';
+    if (selected === '__exit__') {
+        console.log("\n" + chalk.gray('Goodbye!') + ' ' + chalk.cyan('Tip: Use ') + chalk.magenta('gg') + chalk.cyan(' to reopen the palette.'));
+        return;
+    }
 
     const node = process.execPath;
     const entry = process.argv[1];
@@ -38,13 +94,22 @@ export async function openCommandPalette(program) {
     };
 
     if (selected === '__commit__') {
-        const answers = await inquirer.prompt([
-            { type: 'input', name: 'desc', message: 'Enter commit message:', validate: v => !!v || 'Commit message is required' },
-            { type: 'confirm', name: 'genie', message: 'Use AI commit message?', default: false },
-            { type: 'input', name: 'type', message: 'Commit type (feat, fix, docs...)', default: 'feat' },
-            { type: 'input', name: 'scope', message: 'Commit scope (optional)' },
-            { type: 'confirm', name: 'osc', message: 'Open-source issue mode?', default: false },
-         ]);
+        let answers;
+        try {
+            answers = await inquirer.prompt([
+                { type: 'input', name: 'desc', message: 'Enter commit message:', validate: v => !!v || 'Commit message is required' },
+                { type: 'confirm', name: 'genie', message: 'Use AI commit message?', default: false },
+                { type: 'input', name: 'type', message: 'Commit type (feat, fix, docs...)', default: '' },
+                { type: 'input', name: 'scope', message: 'Commit scope (optional)' },
+                { type: 'confirm', name: 'osc', message: 'Open-source issue mode?', default: false },
+                { type: 'confirm', name: 'noBranch', message: 'Commit directly to main (skip branch prompt)?', default: false },
+                { type: 'confirm', name: 'pushToMain', message: 'Push to main after commit?', default: false },
+                { type: 'input', name: 'remote', message: 'Remote origin URL (optional):', default: '' },
+            ]);
+        } catch {
+            console.log("\n" + chalk.yellow('✋ Exited before completing the commit wizard. No changes were made.'));
+            return;
+        }
         const args = [answers.desc];
         if (answers.type) args.push('--type', answers.type);
         if (answers.scope) args.push('--scope', answers.scope);

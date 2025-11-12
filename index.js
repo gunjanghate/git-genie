@@ -236,6 +236,14 @@ program
     process.exit(0);
   });
 
+  program.command('cl')
+    .argument('<url>')
+    .argument('[dir]')
+    .description('Clone repository')
+    .action(async (url, dir) => {
+      await git.clone(url, dir);
+      console.log(chalk.green(`Repo cloned`));
+    });
 // Register branch helper shortcuts
 program.command('b')
   .argument('<branchName>')
@@ -267,14 +275,6 @@ program.command('wt')
     console.log(chalk.green(`Worktree created at "${loc}"`));
   });
 
-program.command('cl')
-  .argument('<url>')
-  .argument('[dir]')
-  .description('Clone repository')
-  .action(async (url, dir) => {
-    await git.clone(url, dir);
-    console.log(chalk.green(`Repo cloned`));
-  });
 
 // ------------------------------ MAIN COMMIT COMMAND ------------------------------
 program

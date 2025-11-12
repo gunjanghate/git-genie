@@ -4,6 +4,15 @@
 
 **GitGenie** is an intelligent command-line interface (CLI) tool designed to simplify and automate Git workflows. It handles common Git operations like committing, branch management, staging, and pushing, while optionally integrating AI-generated commit messages using Google Gemini. This comprehensive documentation details all features, configurations, and functionality implemented to date.
 
+## What's New
+
+- Interactive Command Palette: running `gg` with no arguments opens a menu to pick actions; it shows the exact command it will run.
+- Shortcuts: `gg b`, `gg s`, `gg wt`, `gg cl` for fast branch/worktree/clone flows.
+- Auto-Detect Commit Type: in non-genie mode, if you don’t pass `--type`, the CLI infers a sensible commit type from the diff.
+- Non-interactive flags:
+  - `--no-branch` skips the branch prompt and commits directly to `main`.
+  - `--push-to-main` pushes automatically. If you’re on a feature branch, it merges into `main` and pushes; if you’re on `main`, it just pushes.
+
 ## Quick Start
 
 ### Installation
@@ -29,8 +38,11 @@ gg "add new feature"
 # AI-generated commit message
 gg "fix authentication bug" --genie
 
-# Direct to main branch
+# Commit directly to main (skip branch prompt)
 gg "update documentation" --no-branch
+
+# Merge to main and push after commit
+gg "add dashboard" --type feat --push-to-main
 ```
 
 ## Configuration Management
@@ -87,31 +99,44 @@ GEMINI_API_KEY=your_api_key_here
 
 GitGenie now includes convenient shortcut commands for branch management and worktree operations:
 
-- `gg b <branchName>`: Create and switch to a new branch (shortcut for `git checkout -b <branchName>`)
-- `gg s <branchName>`: Switch to an existing branch (shortcut for `git checkout <branchName>`)
-- `gg wt <branchName> [path] [start]`: Create a worktree for a branch (auto-creates branch if it doesn't exist, optionally specify path and start-point)
-- `gg cl <repoUrl> [directory]`: Clone a repository (shortcut for `git clone <repoUrl> [directory]`)
+- `gg b <branchName>`: Create and switch to a new branch
+- `gg s <branchName>`: Switch to an existing branch
+- `gg wt <branchName> [path]`: Create a worktree for a branch at an optional path
+- `gg cl <repoUrl> [directory]`: Clone a repository into an optional directory
 
 #### Examples:
 
 ```bash
 # Create and switch to a new branch
-node index.js b feature/new-ui
+gg b feature/new-ui
 
 # Switch to an existing branch
-node index.js s main
+gg s main
 
-# Create a worktree for a branch (default path, base: main)
-node index.js wt pr2
+# Create a worktree for a branch (default path is a folder named after the branch)
+gg wt pr2
 
-# Create a worktree for a branch at a custom path, from a specific start-point
-node index.js wt pr2 ../pr2-folder main
+# Create a worktree for a branch at a custom path
+gg wt pr2 ../pr2-folder
 
 # Clone a repository
-node index.js clone https://github.com/username/repo.git
+gg cl https://github.com/username/repo.git
 
 # Clone a repository to a specific directory
-node index.js clone https://github.com/username/repo.git my-custom-folder
+gg cl https://github.com/username/repo.git my-custom-folder
+```
+
+### Command Palette (no-args menu)
+
+- Run `gg` with no arguments to open an interactive menu.
+- Pick actions like “commit”, “b”, “s”, “wt”, or “cl”.
+- The palette prints the exact command it will run and then executes it.
+
+Example
+
+```
+gg
+→ Running: gg "add login retries" --type fix --scope auth
 ```
 
 These shortcuts make branch and worktree management faster and easier, especially for advanced workflows and multi-branch development.
@@ -131,9 +156,10 @@ gg config <api-key>    # Save Gemini API key for persistent use
 ### Available Options
 
 - `<desc>`: Short description of the change (mandatory)
-- `--type <type>`: Commit type (default: `feat`)
+- `--type <type>`: Commit type (if omitted and not using `--genie`, GitGenie will auto-detect a likely type from your changes)
 - `--scope <scope>`: Optional scope for commit message
 - `--genie`: Enable AI commit message generation using Google Gemini
+- Auto-detect commit type (non-genie): If you don’t pass `--type` and you’re not using `--genie`, GitGenie will infer a likely type from your changes.
 - `--osc`: Open source contribution branch format (prompts for issue number, branch name: type/#issue-shorttitle)
 - `--no-branch`: Skip interactive branch choice and commit to main
 - `--push-to-main`: Automatically merge current branch to main and push
@@ -200,6 +226,17 @@ GitGenie Project/
 - Graceful fallback to manual mode when AI fails
 - Support for all conventional commit types and scopes
 
+#### Auto-detect commit type (non-genie)
+
+- When you don’t pass `--type` and you’re not using `--genie`, GitGenie analyzes your staged changes and picks a suitable commit type (e.g., `fix`, `docs`, `refactor`).
+- You’ll see a log like:
+
+  ```
+  🧠 Auto-detected commit type: fix
+  ```
+
+- Override any time by passing `--type <type>` explicitly.
+
 ### 5. Advanced Push and Merge Workflows
 
 - Interactive push confirmation with retry logic
@@ -237,52 +274,52 @@ GitGenie Project/
 - **Entry Point**: `index.js`
 - **Node Version**: 16+ recommended
 
-### 10. Example Usage & Sample Commands
+### Example Usage & Sample Commands
 
 # Open source contribution branch (manual short title)
 
-node index.js "fix login bug" --osc
+gg "fix login bug" --osc
 
 # Open source contribution branch (AI short title)
 
-node index.js "fix login bug" --osc --genie
+gg "fix login bug" --osc --genie
 
 #### Basic Usage:
 
 ```powershell
 # Navigate to project directory
-cd "d:\my\GUNJAN\Git genie"
+cd "d:\my\GUNJAN\Git Butler"
 
 # Install dependencies (if needed)
 npm install
 
 # Basic commit with manual message (default behavior)
-node index.js "add new feature"
+gg "add new feature"
 
 # Commit with AI-generated message using Gemini
-node index.js "fix authentication bug" --genie
+gg "fix authentication bug" --genie
 
 # Commit with specific type and scope
-node index.js "fix authentication bug" --type fix --scope auth
+gg "fix authentication bug" --type fix --scope auth
 
 # Commit with AI, specific type and scope
-node index.js "optimize database queries" --type perf --scope db --genie
+gg "optimize database queries" --type perf --scope db --genie
 
 # Commit directly to main branch (no AI)
-node index.js "update documentation" --no-branch
+gg "update documentation" --no-branch
 
 # Automatically merge to main and push
-node index.js "add user dashboard" --type feat --push-to-main
+gg "add user dashboard" --type feat --push-to-main
 
 # Initialize new repo with remote
-node index.js "initial commit" --remote https://github.com/username/repo.git --no-branch
+gg "initial commit" --remote https://github.com/username/repo.git --no-branch
 ```
 
 #### Interactive Workflow Example:
 
 ```powershell
 # Run with interactive prompts
-node index.js "implement user management"
+gg "implement user management"
 
 # The tool will ask:
 # 1. Current branch is "main". Where do you want to commit?
@@ -300,35 +337,35 @@ node index.js "implement user management"
 
 ```powershell
 # Testing the CLI tool functionality with AI
-node index.js "test file modifications" --type test --scope cli --genie
+gg "test file modifications" --type test --scope cli --genie
 
 # Bug fix with specific scope (manual commit)
-node index.js "resolve merge conflicts" --type fix --scope git
+gg "resolve merge conflicts" --type fix --scope git
 
 # Feature addition with AI-generated commit message
-node index.js "add interactive branch selection" --type feat --scope branch --genie
+gg "add interactive branch selection" --type feat --scope branch --genie
 
 # Documentation update directly to main
-node index.js "update README with examples" --type docs --no-branch
+gg "update README with examples" --type docs --no-branch
 
 # Performance improvement with AI and auto-merge to main
-node index.js "optimize database queries" --type perf --scope db --genie --push-to-main
+gg "optimize database queries" --type perf --scope db --genie --push-to-main
 ```
 
 #### Legacy Examples:
 
 ```bash
 # First commit to a new repo, main branch, manual commit
-node index.js "initial commit" --no-branch --remote https://github.com/username/git-genie.git
+gg "initial commit" --no-branch --remote https://github.com/username/git-genie.git
 
 # Commit to existing repo, interactive branch selection & AI commit
-node index.js "add interactive branch selection" --type feat --scope commit --genie
+gg "add interactive branch selection" --type feat --scope commit --genie
 
 # Commit to current branch directly with manual message
-node index.js "fix typo in README" --no-branch
+gg "fix typo in README" --no-branch
 ```
 
-### 11. Current Workflow Summary
+### Current Workflow Summary
 
 1. CLI parses user input and options.
 2. Initializes Git repository if none exists.
@@ -377,29 +414,27 @@ node index.js "fix typo in README" --no-branch
 
 ```powershell
 # Test basic functionality
-node index.js "test basic functionality" --no-ai --no-branch
+gg "test basic functionality" --no-ai --no-branch
 
 # Test AI commit generation
-node index.js "test AI commit generation" --type test
+gg "test AI commit generation" --type test
 
 # Test branch creation
-node index.js "test branch creation" --type feat --scope testing
+gg "test branch creation" --type feat --scope testing
 
 # Test error handling (no changes)
-node index.js "test no changes scenario" --no-branch
+gg "test no changes scenario" --no-branch
 
 # Test with different commit types
-node index.js "test documentation" --type docs
-node index.js "test bug fix" --type fix
-node index.js "test refactoring" --type refactor
+gg "test documentation" --type docs
+gg "test bug fix" --type fix
+gg "test refactoring" --type refactor
 ```
 
-## 📋 Current Project Status
+## 📋 Notes
 
-- **Repository:** `git-genie` by `gunjanghate`
-- **Current Branch:** `change/text2`
-- **Default Branch:** `main`
-- **Status:** Active development with test files for functionality validation
+- If no remote is configured, the CLI offers to add one before pushing. You can skip this and push later.
+- Unknown commands provide helpful suggestions.
 
 ---
 
@@ -421,4 +456,4 @@ node index.js "test refactoring" --type refactor
 
 ---
 
-This document captures the current state of **Git genie CLI**, including all features, functionality, CLI behavior, project structure, and comprehensive usage examples. It serves as a complete reference for users and developers working with or extending the tool.
+This document captures the current state of **GitGenie CLI**, including all features, functionality, CLI behavior, project structure, and comprehensive usage examples. It serves as a complete reference for users and developers working with or extending the tool.
