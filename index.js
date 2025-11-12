@@ -280,7 +280,7 @@ program.command('cl')
 program
   .command("commit <desc>")
   .description("Commit changes with AI & smart options")
-  .option('--type <type>', 'Commit type', 'change')
+  .option('--type <type>', 'Commit type')
   .option('--scope <scope>', 'Commit scope', '')
   .option('--genie', 'AI commit message')
   .option('--osc', 'Open-source branch mode')
@@ -294,7 +294,7 @@ program
 // Register legacy shorthand commit logic rewritten
 program
   .argument('[desc]')
-  .option('--type <type>', 'Commit type', 'change')
+  .option('--type <type>', 'Commit type')
   .option('--scope <scope>', 'Commit scope', '')
   .option('--genie', 'AI mode')
   .option('--osc', 'OSS branch mode')
