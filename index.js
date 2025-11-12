@@ -220,7 +220,7 @@ ${banner}
     );
   }
 });
-//  Config command as a subcommand
+// Register `config`
 program
   .command('config <apikey>')
   .description('Save your Gemini API key for unlocking genie powers ✨')
@@ -229,150 +229,99 @@ program
       await saveApiKey(apikey);
       console.log(chalk.green('✨ Gemini API key saved successfully!'));
     } catch (err) {
-      console.error(chalk.red(' Failed to save API key.'));
-      console.error(chalk.yellow(`Error: ${err.message}`));
-      console.error(chalk.yellow('Tip: Make sure you have write permissions to your home directory.'));
-      console.error(chalk.cyan('Try running: gg config <your_api_key>'));
-      console.error(chalk.gray('Example: gg config AIzaSy...'));
+      console.error(chalk.red('Failed to save API key.'));
+      console.error(chalk.yellow(err.message));
     }
     process.exit(0);
   });
 
-// Branch management shortcuts
-program
-  .command('b')
-  .argument('<branchName>', 'Name of the branch to create and switch to')
-  .allowUnknownOption(true) // Ignores dotenv & commander meta args
-  .action(async (branchName, _unknown) => {
+// Register branch helper shortcuts
+program.command('b')
+  .argument('<branchName>')
+  .description('Create & switch to new branch')
+  .action(async (branchName) => {
     try {
       await git.checkoutLocalBranch(branchName);
-      console.log(chalk.green(`✅ Created and switched to branch "${branchName}"`));
-    } catch (err) {
-      console.error(chalk.red(`❌ Failed to create branch "${branchName}": ${err.message}`));
+      console.log(chalk.green(`Created & switched to "${branchName}"`));
+    } catch (e) {
+      console.log(chalk.red(e.message));
     }
   });
 
-
-program
-  .command('s')
-  .argument('<branchName>', 'Branch to switch to')
-  .allowUnknownOption(true)
-  .action(async (branchName, _unknown) => {
-    try {
-      await git.checkout(branchName);
-      console.log(chalk.green(`✅ Switched to branch "${branchName}"`));
-    } catch (err) {
-      console.error(chalk.red(`❌ Failed to switch to "${branchName}": ${err.message}`));
-    }
+program.command('s')
+  .argument('<branch>')
+  .description('Switch to a branch')
+  .action(async (branch) => {
+    await git.checkout(branch);
+    console.log(chalk.green(`Switched to "${branch}"`));
   });
 
-
-program
-  .command('wt')
-  .argument('<branchName>', 'Branch to create worktree from')
-  .argument('[path]', 'Optional path for worktree')
-  .allowUnknownOption(true)
-  .action(async (branchName, pathArg, _unknown) => {
-    try {
-      const wtPath = pathArg || path.join(process.cwd(), branchName);
-      await git.raw(['worktree', 'add', wtPath, branchName]);
-      console.log(chalk.green(`✅ Worktree created at "${wtPath}" for branch "${branchName}"`));
-    } catch (err) {
-      console.error(chalk.red(`❌ Failed to create worktree for "${branchName}": ${err.message}`));
-    }
+program.command('wt')
+  .argument('<branch>')
+  .argument('[dir]')
+  .description('Create Git worktree')
+  .action(async (branch, dir) => {
+    const loc = dir || branch;
+    await git.raw(['worktree', 'add', loc, branch]);
+    console.log(chalk.green(`Worktree created at "${loc}"`));
   });
 
-program
-  .command('cl')
-  .argument('<repoUrl>', 'Repository URL to clone')
-  .argument('[directory]', 'Optional directory name for the cloned repository')
-  .allowUnknownOption(true)
-  .action(async (repoUrl, directory, _unknown) => {
-    try {
-      const spinner = ora('📥 Cloning repository...').start();
-
-      if (directory) {
-        await git.clone(repoUrl, directory);
-        spinner.succeed(`✅ Repository cloned to "${directory}"`);
-        console.log(chalk.cyan(`Tip: Navigate to the directory with: cd ${directory}`));
-      } else {
-        await git.clone(repoUrl);
-        // Extract repo name from URL for display
-        const repoName = repoUrl.split('/').pop().replace('.git', '');
-        const targetDir = directory || repoName;
-        spinner.succeed(`✅ Repository cloned to "${targetDir}"`);
-
-        // Try to open the cloned repo in VS Code if available. Use execa to run `code .` in the target dir.
-        try {
-          await execaCommand('code .', { cwd: path.join(process.cwd(), targetDir) });
-          console.log(chalk.green(`✅ Opened "${targetDir}" in VS Code`));
-        } catch (err) {
-          // If 'code' isn't available on PATH or fails, provide a helpful fallback tip
-          console.log(chalk.yellow('⚠ VS Code command (`code`) not found or failed to open.'));
-          console.log(chalk.cyan(`Tip: Navigate to the directory and open it manually:`));
-          console.log(chalk.gray(`  cd ${targetDir} && code .`));
-        }
-
-        console.log(chalk.cyan(`Tip: Navigate to the directory with: cd ${targetDir}`));
-      }
-    } catch (err) {
-      console.error(chalk.red(`❌ Failed to clone repository: ${err.message}`));
-      console.error(chalk.yellow('Tip: Make sure the repository URL is valid and you have access.'));
-    }
+program.command('cl')
+  .argument('<url>')
+  .argument('[dir]')
+  .description('Clone repository')
+  .action(async (url, dir) => {
+    await git.clone(url, dir);
+    console.log(chalk.green(`Repo cloned`));
   });
 
-
-
-// ⚡ Main program configuration (Commit command for menu support)
+// ------------------------------ MAIN COMMIT COMMAND ------------------------------
 program
   .command("commit <desc>")
-  .description("Commit changes with optional AI support")
+  .description("Commit changes with AI & smart options")
   .option('--type <type>', 'Commit type', 'feat')
   .option('--scope <scope>', 'Commit scope', '')
-  .option('--genie', 'Enable AI commit message generation using Gemini')
-  .option('--osc', 'Open source contribution branch format')
-  .option('--no-branch', 'Skip interactive branch choice and commit to main')
-  .option('--push-to-main', 'Automatically merge current branch to main and push')
-  .option('--remote <url>', 'Add remote origin if repo is new')
+  .option('--genie', 'AI commit message')
+  .option('--osc', 'Open-source branch mode')
+  .option('--no-branch', 'Commit on current branch (skip prompt)')
+  .option('--push-to-main', 'Merge & push to main')
+  .option('--remote <url>', 'Set remote origin')
   .action(async (desc, opts) => {
     await runMainFlow(desc, opts);
   });
 
-// Legacy direct commit syntax: gg "message"
+// Register legacy shorthand commit logic rewritten
 program
-  .argument('<desc>', 'Commit message')
+  .argument('[desc]')
   .option('--type <type>', 'Commit type', 'feat')
   .option('--scope <scope>', 'Commit scope', '')
-  .option('--genie', 'Enable AI commit message')
-  .option('--osc', 'Open source contribution branch format')
-  .option('--no-branch', 'Skip interactive branch')
-  .option('--push-to-main', 'Merge to main then push')
+  .option('--genie', 'AI mode')
+  .option('--osc', 'OSS branch mode')
+  .option('--no-branch', 'Skip branch prompt')
+  .option('--push-to-main', 'Push to main after commit')
   .option('--remote <url>')
   .action(async (desc, opts) => {
+    const first = process.argv[2];
+
+    // 🚫 If first arg is a known subcommand, do nothing here
+    if (['commit','b','s','wt','cl','config'].includes(first)) return;
+
+    // No args → open menu
+    if (!desc) {
+      await openCommandPalette(program);
+      process.exit(0);
+    }
+
+    // Run direct commit (only desc input)
     await runMainFlow(desc, opts);
   });
 
-// Smart routing before parsing commands
-const firstArg = process.argv[2];
-const knownCommands = program.commands.map(c => c._name);
-
-// If user typed `gg message` and not a command → treat as commit message
-if (
-  firstArg &&
-  !knownCommands.includes(firstArg) &&
-  !firstArg.startsWith("-")
-) {
-  await runMainFlow(firstArg, {});
-  process.exit(0);
-}
-
-// No args = open menu
+// No-args = open palette
 if (!process.argv.slice(2).length) {
   await openCommandPalette(program);
   process.exit(0);
 }
 
-// Parse CLI args normally
 program.parse(process.argv);
 
 
@@ -709,7 +658,7 @@ async function runMainFlow(desc, opts) {
     const branchInfo = await git.branch();
     const currentBranch = branchInfo.current || 'main';
 
-    if (opts.noBranch || !hasCommits) {
+    if (opts.branch == false || !hasCommits) {
       branchName = 'main';
       await git.checkout(['-B', branchName]);
       console.log(chalk.green(`Committing directly to branch: ${branchName}`));
