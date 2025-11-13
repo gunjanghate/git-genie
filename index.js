@@ -13,8 +13,14 @@ import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
 import keytar from 'keytar';
-import { openCommandPalette } from './helpers/commandPalette.js';
-import { detectCommitType } from './helpers/detectCommitType.js';
+const { openCommandPalette } = await import(
+  new URL('./helpers/commandPalette.js', import.meta.url)
+);
+
+const { detectCommitType } = await import(
+  new URL('./helpers/detectCommitType.js', import.meta.url)
+);
+
 
 dotenv.config({ debug: false });
 const git = simpleGit();
@@ -236,14 +242,48 @@ program
     process.exit(0);
   });
 
-  program.command('cl')
-    .argument('<url>')
-    .argument('[dir]')
-    .description('Clone repository')
-    .action(async (url, dir) => {
+program.command('cl')
+  .argument('<url>')
+  .argument('[dir]')
+  .description('Clone repository')
+  .action(async (url, dir) => {
+    const spinner = ora('📥 Cloning repository...').start();
+    try {
       await git.clone(url, dir);
-      console.log(chalk.green(`Repo cloned`));
-    });
+
+      // Determine the target directory name for helpful next steps
+      const repoNameFromUrl = (() => {
+        try {
+          const parts = url.split('/').filter(Boolean);
+          const last = parts[parts.length - 1] || '';
+          return (last || 'repo').replace(/\.git$/i, '');
+        } catch {
+          return dir || 'repo';
+        }
+      })();
+
+      const targetDir = dir || repoNameFromUrl;
+      spinner.succeed(`✅ Repository cloned to "${targetDir}"`);
+
+      // Helpful next steps
+      console.log(chalk.cyan('Next steps:'));
+      console.log(chalk.gray(`  cd ${targetDir}`));
+      console.log(chalk.gray('  code .'));
+
+      // Try to automatically open the repo in VS Code
+      try {
+        await execaCommand('code .', { cwd: path.resolve(process.cwd(), targetDir) });
+        console.log(chalk.green(`✅ Opened "${targetDir}" in VS Code`));
+      } catch (openErr) {
+        console.log(chalk.yellow('⚠ Could not open VS Code automatically.'));
+        console.log(chalk.cyan('Tip: Ensure the "code" command is on your PATH. In VS Code, use: Command Palette → Shell Command: Install "code" command in PATH.'));
+      }
+    } catch (err) {
+      spinner.fail('❌ Failed to clone repository.');
+      console.log(chalk.red(err.message));
+      console.log(chalk.cyan('Tip: Ensure the URL is correct and you have access (SSH/HTTPS).'));
+    }
+  });
 // Register branch helper shortcuts
 program.command('b')
   .argument('<branchName>')
