@@ -306,13 +306,339 @@ program.command('s')
   });
 
 program.command('wt')
-  .argument('<branch>')
-  .argument('[dir]')
-  .description('Create Git worktree')
-  .action(async (branch, dir) => {
-    const loc = dir || branch;
-    await git.raw(['worktree', 'add', loc, branch]);
-    console.log(chalk.green(`Worktree created at "${loc}"`));
+  .argument('[arg1]')
+  .argument('[arg2]')
+  .description('Worktree helper: create, list, or remove')
+  .action(async (arg1, arg2) => {
+    try {
+      // gg wt ls  OR  gg wt
+      if (!arg1 || arg1 === 'ls') {
+        const spinner = ora('📂 Reading worktrees...').start();
+        const output = await git.raw(['worktree', 'list']);
+        spinner.stop();
+
+        if (!output.trim()) {
+          console.log(chalk.yellow('No worktrees found.'));
+          console.log(chalk.cyan('Tip: Create one with: gg wt <branch> [dir]'));
+          return;
+        }
+
+        console.log(chalk.magenta('📂 Worktrees:'));
+        const lines = output.trim().split('\n');
+        for (const line of lines) {
+          const branchMatch = line.match(/\[(.+?)\]/);
+          const branch = branchMatch ? branchMatch[1] : 'detached or main';
+          const pathPart = line.split(' ')[0];
+          console.log(`${chalk.green(branch)} ${chalk.gray('→')} ${chalk.cyan(pathPart)}`);
+        }
+        return;
+      }
+
+      // gg wt rm <branchName>
+      if (arg1 === 'rm') {
+        const branchName = arg2;
+        if (!branchName) {
+          console.log(chalk.red('❌ Please provide a branch name to remove its worktree.'));
+          console.log(chalk.cyan('Usage: gg wt rm <branchName>'));
+          return;
+        }
+
+        const output = await git.raw(['worktree', 'list']);
+        const lines = output.trim().split('\n').filter(Boolean);
+
+        const match = lines.map(line => ({
+          line,
+          branch: (line.match(/\[(.+?)\]/) || [null, null])[1],
+          path: line.split(' ')[0]
+        })).find(entry => entry.branch === branchName);
+
+        if (!match) {
+          console.log(chalk.red(`❌ No worktree found for branch "${branchName}".`));
+          console.log(chalk.cyan('Tip: List existing worktrees with: gg wt ls'));
+          return;
+        }
+
+        const spinner = ora(`🧹 Removing worktree at "${match.path}"...`).start();
+        try {
+          await git.raw(['worktree', 'remove', match.path]);
+          spinner.succeed(`🧹 Worktree for ${branchName} removed`);
+        } catch (err) {
+          spinner.fail('Failed to remove worktree.');
+          if (err?.message) console.log(chalk.gray(`Details: ${err.message}`));
+          console.log(chalk.cyan('Tip: Make sure no files are in use and the path exists.'));
+        }
+        return;
+      }
+
+      // Default: gg wt <branch> [dir]  → create worktree
+      const branch = arg1;
+      const dir = arg2;
+      if (!branch) {
+        console.log(chalk.red('❌ Branch name is required to create a worktree.'));
+        console.log(chalk.cyan('Usage: gg wt <branch> [dir]'));
+        return;
+      }
+
+      const loc = dir || branch;
+      const spinner = ora(`🌿 Creating worktree for "${branch}" at "${loc}"...`).start();
+      try {
+        const branchSummary = await git.branchLocal();
+        const exists = !!branchSummary.branches?.[branch];
+        if (exists) {
+          await git.raw(['worktree', 'add', loc, branch]);
+        } else {
+          const startPoint = branchSummary.current || 'main';
+          await git.raw(['worktree', 'add', '-b', branch, loc, startPoint]);
+        }
+        spinner.succeed(chalk.green(`Worktree created at "${loc}"`));
+      } catch (err) {
+        spinner.fail('Failed to create worktree.');
+        if (err?.message) console.log(chalk.gray(`Details: ${err.message}`));
+        console.log(chalk.cyan('Tip: Ensure the base branch exists and the target path does not already contain a worktree.'));
+      }
+    } catch (err) {
+      console.log(chalk.red('❌ Worktree command failed.'));
+      if (err?.message) console.log(chalk.gray(`Details: ${err.message}`));
+    }
+  });
+
+// ------------------------------ SETUP SHORTCUT COMMAND ------------------------------
+program
+  .command('setup <upstreamUrl> <branchName>')
+  .description('Configure upstream, sync main, and create a feature branch')
+  .action(async (upstreamUrl, branchName) => {
+    try {
+      // Ensure we are in a git repository (init if needed)
+      let isRepo = await git.checkIsRepo();
+      if (!isRepo) {
+        const spinnerInit = ora('📁 Initializing git repository...').start();
+        try {
+          await git.init();
+          spinnerInit.succeed('Git repository initialized.');
+        } catch (err) {
+          spinnerInit.fail('Failed to initialize git repository.');
+          if (err?.message) console.log(chalk.gray(`Details: ${err.message}`));
+          console.log(chalk.cyan('Tip: You can run "git init" manually and try again.'));
+          return;
+        }
+      }
+
+      // 1️⃣ Configure upstream remote
+      const spinnerUpstream = ora('🔗 Configuring upstream remote...').start();
+      try {
+        const remotes = await git.getRemotes(true);
+        const hasUpstream = remotes.some(r => r.name === 'upstream');
+
+        if (hasUpstream) {
+          spinnerUpstream.warn('Upstream remote already exists. Using existing "upstream".');
+        } else {
+          await git.raw(['remote', 'add', 'upstream', upstreamUrl]);
+          spinnerUpstream.succeed('🔗 Upstream remote added');
+        }
+      } catch (err) {
+        spinnerUpstream.fail('Failed to configure upstream remote.');
+        if (err?.message) console.log(chalk.gray(`Details: ${err.message}`));
+        console.log(chalk.cyan('Tip: Ensure you are inside a git repository and the URL is valid.'));
+        return;
+      }
+
+      // 2️⃣ Switch to main branch
+      const spinnerCheckout = ora('🔄 Switching to main branch...').start();
+      try {
+        await git.checkout('main');
+        spinnerCheckout.succeed('Switched to main branch');
+      } catch (err) {
+        spinnerCheckout.fail('Failed to switch to main branch.');
+        if (err?.message) console.log(chalk.gray(`Details: ${err.message}`));
+        console.log(chalk.cyan('Tip: Make sure a "main" branch exists, or create one from your default branch.'));
+        return;
+      }
+
+      // 3️⃣ Pull latest from upstream/main
+      const spinnerPull = ora('📥 Pulling latest from upstream/main...').start();
+      let pulled = false;
+      try {
+        await git.pull('upstream', 'main');
+        spinnerPull.succeed('🔄 Fork synced with upstream main');
+        pulled = true;
+      } catch (err) {
+        spinnerPull.fail('Failed to pull from upstream/main.');
+        if (err?.message) console.log(chalk.gray(`Details: ${err.message}`));
+        console.log(chalk.cyan('Tip: Ensure upstream points to the original repository and you have access.'));
+      }
+
+      // 4️⃣ Push updated main to origin if it exists
+      const remotesAfter = await git.getRemotes(true);
+      const hasOrigin = remotesAfter.some(r => r.name === 'origin');
+      if (!hasOrigin) {
+        console.log(chalk.yellow('⚠ No origin remote found. Skipping push to origin.'));
+        console.log(chalk.cyan('Tip: Add origin with: git remote add origin <your-fork-url>'));
+      } else {
+        const spinnerPush = ora('🚀 Pushing main to origin...').start();
+        try {
+          if (pulled) {
+            await git.push('origin', 'main');
+          } else {
+            // Even if pull failed, try to push local main if user wants latest local only
+            await git.push('origin', 'main');
+          }
+          spinnerPush.succeed('Main branch pushed to origin.');
+        } catch (err) {
+          spinnerPush.fail('Failed to push main to origin.');
+          if (err?.message) console.log(chalk.gray(`Details: ${err.message}`));
+          console.log(chalk.cyan('Tip: Ensure origin is configured and you have push permissions.'));
+        }
+      }
+
+      // 5️⃣ Create and switch to feature branch
+      const spinnerBranch = ora(`🌿 Creating branch "${branchName}" from main...`).start();
+      try {
+        await git.checkoutLocalBranch(branchName);
+        spinnerBranch.succeed(`🌿 Branch ${branchName} created & switched`);
+      } catch (err) {
+        spinnerBranch.fail('Failed to create or switch to the new branch.');
+        if (err?.message) console.log(chalk.gray(`Details: ${err.message}`));
+        console.log(chalk.cyan('Tip: Make sure the branch name is valid and not already in use.'));
+        return;
+      }
+
+      console.log(chalk.green(`✨ Repository ready. You are now on branch ${branchName}`));
+      console.log(chalk.cyan('Ready to start contributing!'));
+    } catch (err) {
+      console.log(chalk.red('❌ Setup command failed.'));
+      if (err?.message) console.log(chalk.gray(`Details: ${err.message}`));
+    }
+  });
+
+// ------------------------------ UPSTREAM REMOTE COMMANDS ------------------------------
+const us = program
+  .command('us')
+  .description('Upstream remote helpers');
+
+us
+  .command('add <url>')
+  .description('Add upstream remote pointing to original repo')
+  .action(async (url) => {
+    try {
+      const remotes = await git.getRemotes(true);
+      const hasUpstream = remotes.some(r => r.name === 'upstream');
+
+      if (hasUpstream) {
+        console.log(chalk.yellow('⚠ Upstream remote already exists.'));
+        console.log(chalk.cyan('Tip: To inspect remotes, run: git remote -v'));
+        return;
+      }
+
+      await git.raw(['remote', 'add', 'upstream', url]);
+      console.log(chalk.green(`✅ Upstream remote added: ${url}`));
+    } catch (err) {
+      console.log(chalk.red('❌ Failed to add upstream remote.'));
+      if (err?.message) console.log(chalk.gray(`Details: ${err.message}`));
+      console.log(chalk.cyan('Tip: Ensure you are inside a git repository and the URL is valid.'));
+    }
+  });
+
+us
+  .command('sync')
+  .description('Sync local main with upstream main')
+  .action(async () => {
+    try {
+      const remotes = await git.getRemotes(true);
+      const hasUpstream = remotes.some(r => r.name === 'upstream');
+      if (!hasUpstream) {
+        console.log(chalk.red('❌ No upstream remote found. Run: gg us add <repo-url>'));
+        return;
+      }
+
+      const spinnerCheckout = ora('🔄 Switching to main branch...').start();
+      try {
+        await git.checkout('main');
+        spinnerCheckout.succeed('Switched to main branch');
+      } catch (err) {
+        spinnerCheckout.fail('Failed to switch to main branch.');
+        if (err?.message) console.log(chalk.gray(`Details: ${err.message}`));
+        console.log(chalk.cyan('Tip: Make sure a "main" branch exists locally.'));
+        return;
+      }
+
+      const spinnerPull = ora('📥 Pulling latest changes from upstream/main...').start();
+      let pulled = false;
+      try {
+        await git.pull('upstream', 'main');
+        spinnerPull.succeed('Upstream main fetched and merged.');
+        pulled = true;
+      } catch (err) {
+        spinnerPull.fail('Failed to pull from upstream/main.');
+        if (err?.message) console.log(chalk.gray(`Details: ${err.message}`));
+        console.log(chalk.cyan('Tip: Ensure upstream points to the original repository and you have access.'));
+      }
+
+      if (!pulled) return;
+
+      const { pushOrigin } = await inquirer.prompt([{
+        type: 'confirm',
+        name: 'pushOrigin',
+        message: 'Do you want to push updated main to origin?',
+        default: true
+      }]);
+
+      if (!pushOrigin) {
+        console.log(chalk.yellow('Skipping push to origin.'));
+        console.log(chalk.cyan('You can push manually with: git push origin main'));
+        return;
+      }
+
+      const spinnerPush = ora('🚀 Pushing main to origin...').start();
+      try {
+        await git.push('origin', 'main');
+        spinnerPush.succeed('✅ Fork is now up to date (origin/main).');
+      } catch (err) {
+        spinnerPush.fail('Failed to push main to origin.');
+        if (err?.message) console.log(chalk.gray(`Details: ${err.message}`));
+        console.log(chalk.cyan('Tip: Ensure origin is configured and you have push permissions.'));
+      }
+    } catch (err) {
+      console.log(chalk.red('❌ Upstream sync failed.'));
+      if (err?.message) console.log(chalk.gray(`Details: ${err.message}`));
+      console.log(chalk.cyan('Tip: Make sure you are inside a git repository.'));
+    }
+  });
+
+// ------------------------------ QUICK WORKTREE NAVIGATION ------------------------------
+program
+  .command('goto <branchName>')
+  .description('Show path (and optionally open) worktree for a branch')
+  .action(async (branchName) => {
+    try {
+      const output = await git.raw(['worktree', 'list']);
+      const lines = output.trim().split('\n').filter(Boolean);
+
+      const match = lines.map(line => ({
+        branch: (line.match(/\[(.+?)\]/) || [null, null])[1],
+        path: line.split(' ')[0]
+      })).find(entry => entry.branch === branchName);
+
+      if (!match) {
+        console.log(chalk.red(`❌ No worktree found for branch "${branchName}".`));
+        console.log(chalk.cyan('Tip: List worktrees with: gg wt ls'));
+        return;
+      }
+
+      console.log(chalk.magenta('📂 Run:'));
+      console.log(chalk.gray(`  cd ${match.path}`));
+      console.log(chalk.gray(`  code ${match.path}`));
+
+      try {
+        await execaCommand('code -n .', { cwd: match.path });
+        console.log(chalk.green('✅ Opened worktree in a new VS Code window.'));
+      } catch {
+        console.log(chalk.yellow('⚠ Could not open VS Code automatically. Make sure the "code" command is on your PATH.'));
+      }
+    } catch (err) {
+      console.log(chalk.red('❌ Failed to locate worktrees.'));
+      if (err?.message) console.log(chalk.gray(`Details: ${err.message}`));
+      console.log(chalk.cyan('Tip: Ensure you are inside a git repository.'));
+    }
   });
 
 
@@ -675,14 +1001,26 @@ async function runMainFlow(desc, opts) {
       console.log(chalk.gray('Example: git remote add origin https://github.com/username/repo.git'));
     }
 
-    // 2️⃣ Add remote if provided
+    // 2️⃣ Add or update remote if provided
     if (opts.remote) {
       try {
-        await git.remote(['add', 'origin', opts.remote]);
-        console.log(chalk.green(`Remote origin set to ${opts.remote}`));
-      } catch {
-        console.log(chalk.yellow('Remote origin may already exist.'));
-        console.log(chalk.cyan('Tip: To change remote, run: git remote set-url origin <url>'));
+        const remotes = await git.getRemotes(true);
+        const origin = remotes.find(r => r.name === 'origin');
+
+        if (!origin) {
+          await git.remote(['add', 'origin', opts.remote]);
+          console.log(chalk.green(`Remote origin set to ${opts.remote}`));
+        } else {
+          await git.remote(['set-url', 'origin', opts.remote]);
+          console.log(chalk.green(`Remote origin updated to ${opts.remote}`));
+        }
+      } catch (err) {
+        console.log(chalk.red('❌ Failed to configure remote origin automatically.'));
+        console.log(chalk.yellow('Tip: You can set it manually with:'));
+        console.log(chalk.cyan('  git remote set-url origin <url>'));
+        if (err?.message) {
+          console.log(chalk.gray(`Details: ${err.message}`));
+        }
       }
     }
 

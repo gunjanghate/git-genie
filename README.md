@@ -95,14 +95,20 @@ GEMINI_API_KEY=your_api_key_here
 
 ## CLI Commands and Options
 
-### Branch Management Shortcuts
+### Branch & Worktree Shortcuts
 
-GitGenie now includes convenient shortcut commands for branch management and worktree operations:
+GitGenie includes convenient shortcut commands for branch, remote, and worktree operations:
 
 - `gg b <branchName>`: Create and switch to a new branch
 - `gg s <branchName>`: Switch to an existing branch
 - `gg wt <branchName> [path]`: Create a worktree for a branch at an optional path
 - `gg cl <repoUrl> [directory]`: Clone a repository into an optional directory
+- `gg setup <upstreamUrl> <branchName>`: Configure `upstream`, sync `main` from it, and create/switch to a feature branch
+- `gg us add <url>`: Add an `upstream` remote pointing to the original repo
+- `gg us sync`: Sync your local `main` from `upstream/main` and optionally push to `origin/main`
+- `gg wt ls`: List all existing worktrees with branches and paths
+- `gg wt rm <branchName>`: Remove the worktree associated with the given branch
+- `gg goto <branchName>`: Show (and try to open) the worktree folder for a branch
 
 #### Examples:
 
@@ -124,6 +130,29 @@ gg cl https://github.com/username/repo.git
 
 # Clone a repository to a specific directory
 gg cl https://github.com/username/repo.git my-custom-folder
+
+# One-shot fork setup: configure upstream, sync main, and create a feature branch
+gg setup https://github.com/original/repo.git fix/navbar-bug
+
+# Equivalent internal steps:
+#   git remote add upstream https://github.com/original/repo.git
+#   git checkout main
+#   git pull upstream main
+#   git push origin main   # if origin exists
+#   git checkout -b fix/navbar-bug
+
+# Add an upstream remote (original repo)
+gg us add https://github.com/original/repo.git
+
+# Sync local main from upstream and push to origin
+gg us sync
+
+# List and remove worktrees
+gg wt ls
+gg wt rm docs/readme-update
+
+# Show path for worktree and open in VS Code
+gg goto docs/readme-update
 ```
 
 ### Command Palette (no-args menu)
