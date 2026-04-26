@@ -21,7 +21,9 @@ export class OpenAICompatibleCloudProvider extends BaseAIProvider {
         super(config);
         this.name = config.name;
         this.baseUrl = config.baseUrl;
-        this.model = config.model;
+        this.defaultModel = config.defaultModel || 'gpt-4o-mini';
+        const configuredModel = typeof config.model === 'string' ? config.model.trim() : '';
+        this.model = configuredModel || this.defaultModel;
         this.authHeader = config.authHeader || 'Authorization';
         this.authPrefix = config.authPrefix || 'Bearer ';
         this.validatePath = config.validatePath || '/chat/completions';
@@ -32,14 +34,22 @@ export class OpenAICompatibleCloudProvider extends BaseAIProvider {
     }
 
     async validateApiKey(apiKey) {
-        if (!apiKey) return false;
+        if (!apiKey) {
+            console.warn(`[${this.getName()}] API key is not set.`);
+            return false;
+        }
         try {
+            console.log(`[${this.getName()}] Validating API key with model: ${this.model}`);
             await this.chat(apiKey, [{ role: 'user', content: 'Reply with only: ok' }], {
                 max_tokens: 5,
                 temperature: 0,
             });
+            console.log(`[${this.getName()}] API key is valid.`);
             return true;
-        } catch {
+        } catch (err) {
+            console.error(`[${this.getName()}] Validation error:`,
+                err.response?.data || err.message
+            );
             return false;
         }
     }
@@ -52,21 +62,32 @@ export class OpenAICompatibleCloudProvider extends BaseAIProvider {
     }
 
     async chat(apiKey, messages, extra = {}) {
+        if (!this.model) {
+            throw new Error(`[${this.getName()}] model is missing. Configure a model for this provider.`);
+        }
+
+        console.log(`[${this.getName()}] Using model: ${this.model}`);
+
         const url = `${this.baseUrl}${this.validatePath}`;
-        const response = await axios.post(
-            url,
-            {
-                model: this.model,
-                messages,
-                temperature: 0.2,
-                ...extra,
-            },
-            {
-                headers: this.buildHeaders(apiKey),
-                timeout: 20000,
-            }
-        );
-        return response.data?.choices?.[0]?.message?.content || '';
+        try {
+            const response = await axios.post(
+                url,
+                {
+                    model: this.model,
+                    messages,
+                    temperature: 0.2,
+                    ...extra,
+                },
+                {
+                    headers: this.buildHeaders(apiKey),
+                    timeout: 20000,
+                }
+            );
+            return response.data?.choices?.[0]?.message?.content || '';
+        } catch (err) {
+            console.error(`[${this.getName()}] API request failed:`, err.response?.data || err.message);
+            throw err;
+        }
     }
 
     async generateCommitMessage({ apiKey, diff, desc, type, scope }) {

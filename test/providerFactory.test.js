@@ -33,3 +33,22 @@ test('ProviderFactory marks local providers correctly', () => {
     assert.equal(factory.isLocalProvider('lmstudio'), true);
     assert.equal(factory.isLocalProvider('gemini'), false);
 });
+
+test('Cloud providers always resolve a non-empty default model', () => {
+    const factory = createDefaultProviderFactory();
+
+    const groq = factory.createProvider('groq', {});
+    const mistral = factory.createProvider('mistral', {});
+
+    assert.ok(groq.model, 'groq model should be defined');
+    assert.ok(mistral.model, 'mistral model should be defined');
+    assert.equal(groq.model, 'llama-3.3-70b-versatile');
+    assert.equal(mistral.model, 'mistral-small-latest');
+});
+
+test('Cloud provider keeps custom model when provided', () => {
+    const factory = createDefaultProviderFactory();
+
+    const groq = factory.createProvider('groq', { model: 'llama-3.3-70b-versatile' });
+    assert.equal(groq.model, 'llama-3.3-70b-versatile');
+});

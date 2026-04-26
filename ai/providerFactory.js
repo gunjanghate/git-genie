@@ -3,6 +3,11 @@ import { LMStudioProvider } from './providers/LMStudioProvider.js';
 import { OllamaProvider } from './providers/OllamaProvider.js';
 import { OpenAICompatibleCloudProvider } from './providers/OpenAICompatibleCloudProvider.js';
 
+function resolveModel(model, defaultModel) {
+    const normalized = typeof model === 'string' ? model.trim() : '';
+    return normalized || defaultModel;
+}
+
 export class ProviderFactory {
     constructor() {
         this.registry = new Map();
@@ -45,17 +50,19 @@ export function createDefaultProviderFactory() {
     factory.registerProvider('gemini', (config) => new GeminiProvider(config));
 
     factory.registerProvider('mistral', (config) => new OpenAICompatibleCloudProvider({
+        ...config,
         name: 'mistral',
         baseUrl: 'https://api.mistral.ai/v1',
-        model: config.model || 'mistral-small-latest',
-        ...config,
+        defaultModel: 'mistral-small-latest',
+        model: resolveModel(config.model, 'mistral-small-latest'),
     }));
 
     factory.registerProvider('groq', (config) => new OpenAICompatibleCloudProvider({
+        ...config,
         name: 'groq',
         baseUrl: 'https://api.groq.com/openai/v1',
-        model: config.model || 'llama3-70b-8192',
-        ...config,
+        defaultModel: 'llama-3.3-70b-versatile',
+        model: resolveModel(config.model, 'llama-3.3-70b-versatile'),
     }));
 
     factory.registerProvider('ollama', (config) => new OllamaProvider(config), { local: true });
