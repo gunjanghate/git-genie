@@ -54,7 +54,7 @@ export function createDefaultProviderFactory() {
     factory.registerProvider('groq', (config) => new OpenAICompatibleCloudProvider({
         name: 'groq',
         baseUrl: 'https://api.groq.com/openai/v1',
-        model: config.model || 'llama-3.1-8b-instant',
+        model: config.model || 'llama3-70b-8192',
         ...config,
     }));
 
