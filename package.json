@@ -1,7 +1,7 @@
 {
   "name": "@gunjanghate/git-genie",
   "version": "1.5.0",
-  "description": "An intelligent Git CLI that automates staging, Conventional Commit messages (via Gemini), branch flow, and push/merge in one go.",
+  "description": "An intelligent Git CLI that automates staging, Conventional Commit messages (via multi-provider AI), branch flow, and push/merge in one go.",
   "main": "index.js",
   "type": "module",
   "bin": {
@@ -10,6 +10,7 @@
   },
   "files": [
     "index.js",
+    "ai/",
     "scripts/",
     "helpers/",
     "README.md",

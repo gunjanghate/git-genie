@@ -5,14 +5,20 @@ import simpleGit from 'simple-git';
 import dotenv from 'dotenv';
 import chalk from 'chalk';
 import ora from 'ora';
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import inquirer from 'inquirer';
 import { execaCommand } from 'execa';
-import fs from 'fs';
-import os from 'os';
 import path from 'path';
-import crypto from 'crypto';
-import keytar from 'keytar';
+import { createDefaultProviderFactory } from './ai/providerFactory.js';
+import {
+  getProvidersStatus,
+  readConfig,
+  readCloudApiKey,
+  readLocalProviderConfig,
+  saveCloudApiKey,
+  saveLocalProviderConfig,
+  setActiveProvider,
+} from './ai/configStore.js';
+import { getActiveProviderInstance } from './ai/getActiveProviderInstance.js';
 const { openCommandPalette } = await import(
   new URL('./helpers/commandPalette.js', import.meta.url)
 );
@@ -25,143 +31,7 @@ const { detectCommitType } = await import(
 dotenv.config({ debug: false });
 const git = simpleGit();
 
-// 🔑 Keytar service configuration
-const SERVICE_NAME = "GitGenie";
-const ACCOUNT_NAME = "gemini_api_key";
-const ENCRYPTION_KEY_ACCOUNT = "encryption_key";
-
-// 🔑 Config file path (~/.gitgenie/config.json)
-const configDir = path.join(os.homedir(), '.gitgenie');
-const configFile = path.join(configDir, 'config.json');
-
-// Generate or retrieve unique encryption key for this user
-async function getEncryptionKey() {
-  try {
-    // Try to get existing encryption key from keytar
-    let encryptionKey = await keytar.getPassword(SERVICE_NAME, ENCRYPTION_KEY_ACCOUNT);
-
-    if (!encryptionKey) {
-      // Generate a new random 32-byte key for this user
-      encryptionKey = crypto.randomBytes(32).toString('hex');
-      // Store it securely in keytar
-      await keytar.setPassword(SERVICE_NAME, ENCRYPTION_KEY_ACCOUNT, encryptionKey);
-    }
-
-    return encryptionKey;
-  } catch (error) {
-    // Fallback: generate a unique key based on user's home directory and machine
-    const uniqueData = os.homedir() + os.hostname() + os.userInfo().username;
-    return crypto.createHash('sha256').update(uniqueData).digest('hex');
-  }
-}
-
-async function encrypt(text) {
-  if (!text || typeof text !== 'string') {
-    throw new Error('Text to encrypt must be a non-empty string');
-  }
-
-  try {
-    const encryptionKey = await getEncryptionKey();
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(encryptionKey, 'hex'), iv);
-    let encrypted = cipher.update(text, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    return iv.toString('hex') + ':' + encrypted;
-  } catch (error) {
-    throw new Error(`Encryption failed: ${error.message}`);
-  }
-}
-
-async function decrypt(text) {
-  if (!text || typeof text !== 'string') {
-    throw new Error('Text to decrypt must be a non-empty string');
-  }
-
-  try {
-    const encryptionKey = await getEncryptionKey();
-
-    // Validate format - must contain exactly one colon
-    const parts = text.split(':');
-    if (parts.length !== 2) {
-      throw new Error('Invalid encrypted data format');
-    }
-
-    const [ivHex, encrypted] = parts;
-
-    // Validate hex strings
-    if (!ivHex || !encrypted || ivHex.length !== 32) {
-      throw new Error('Invalid encrypted data structure');
-    }
-
-    const iv = Buffer.from(ivHex, 'hex');
-    const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(encryptionKey, 'hex'), iv);
-    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
-  } catch (error) {
-    throw new Error(`Decryption failed: ${error.message}`);
-  }
-}
-
-async function getApiKey() {
-  // First check environment variable
-  if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
-
-  try {
-    // Try to get from keytar (secure storage)
-    const keyFromKeytar = await keytar.getPassword(SERVICE_NAME, ACCOUNT_NAME);
-    if (keyFromKeytar) return keyFromKeytar;
-  } catch (error) {
-    // Keytar failed, continue to config.json fallback
-  }
-
-  // Fallback to config.json (encrypted)
-  if (fs.existsSync(configFile)) {
-    try {
-      const config = JSON.parse(fs.readFileSync(configFile, 'utf-8'));
-      if (config.GEMINI_API_KEY) {
-        try {
-          // Decrypt before returning (now async with error handling)
-          return await decrypt(config.GEMINI_API_KEY);
-        } catch (decryptError) {
-          // If decryption fails, the config file might be corrupted
-          console.warn(chalk.yellow('⚠ Config file appears corrupted. Please reconfigure your API key.'));
-          return null;
-        }
-      }
-      return null;
-    } catch (jsonError) {
-      // If JSON parsing fails, config file is corrupted
-      return null;
-    }
-  }
-  return null;
-}
-
-async function saveApiKey(apikey) {
-  // Validate input
-  if (!apikey || typeof apikey !== 'string' || apikey.trim().length === 0) {
-    throw new Error('API key must be a non-empty string');
-  }
-
-  const trimmedApiKey = apikey.trim();
-
-  try {
-    // Try to save to keytar first (secure storage)
-    await keytar.setPassword(SERVICE_NAME, ACCOUNT_NAME, trimmedApiKey);
-    return true;
-  } catch (error) {
-    // Keytar failed, fallback to config.json (encrypted)
-    try {
-      if (!fs.existsSync(configDir)) fs.mkdirSync(configDir, { recursive: true });
-      const encryptedKey = await encrypt(trimmedApiKey);
-      fs.writeFileSync(configFile, JSON.stringify({ GEMINI_API_KEY: encryptedKey }, null, 2));
-      return true;
-    } catch (err) {
-      throw new Error(`Failed to save API key: ${err.message}`);
-    }
-  }
-}
+const providerFactory = createDefaultProviderFactory();
 
 const program = new Command();
 
@@ -227,19 +97,157 @@ ${banner}
     );
   }
 });
-// Register `config`
-program
-  .command('config <apikey>')
-  .description('Save your Gemini API key for unlocking genie powers ✨')
-  .action(async (apikey) => {
-    try {
-      await saveApiKey(apikey);
-      console.log(chalk.green('✨ Gemini API key saved successfully!'));
-    } catch (err) {
-      console.error(chalk.red('Failed to save API key.'));
-      console.error(chalk.yellow(err.message));
+
+function isCloudProvider(name) {
+  return !providerFactory.isLocalProvider(name);
+}
+
+async function resolveLocalSettings(providerName, options) {
+  const current = await readLocalProviderConfig(providerName);
+  const baseUrl = options.url || current.baseUrl;
+  let model = options.model || current.model;
+
+  const provider = providerFactory.createProvider(providerName, { baseUrl, model });
+
+  if (options.discoverModel && typeof provider.discoverModels === 'function') {
+    const discovered = await provider.discoverModels();
+    if (discovered.length > 0 && !model) {
+      model = discovered[0];
     }
-    process.exit(0);
+  }
+
+  return {
+    baseUrl,
+    model,
+  };
+}
+
+program
+  .command('config [value]')
+  .description('Configure AI provider credentials or local provider settings')
+  .option('--provider <provider>', 'Provider name (gemini, mistral, groq, ollama, lmstudio)')
+  .option('--api-key <apiKey>', 'Cloud provider API key')
+  .option('--url <baseUrl>', 'Local provider base URL')
+  .option('--model <model>', 'Provider model')
+  .option('--discover-model', 'Try to auto-discover model for local providers')
+  .action(async (value, options) => {
+    const supported = providerFactory.getSupportedProviders();
+
+    let providerName = options.provider;
+    if (!providerName) {
+      const cfg = await readConfig();
+      providerName = cfg.activeProvider || 'gemini';
+    }
+
+    providerName = String(providerName).toLowerCase();
+
+    if (!supported.includes(providerName)) {
+      console.error(chalk.red(`Unknown provider "${providerName}".`));
+      console.error(chalk.yellow(`Supported providers: ${supported.join(', ')}`));
+      process.exit(1);
+    }
+
+    try {
+      if (!options.provider && value && !options.apiKey && isCloudProvider('gemini')) {
+        const result = await saveCloudApiKey('gemini', value);
+        await setActiveProvider('gemini');
+        console.log(chalk.green('✨ Gemini API key saved successfully!'));
+        console.log(chalk.gray(`Storage: ${result.secureStorage}`));
+        process.exit(0);
+      }
+
+      if (providerFactory.isLocalProvider(providerName)) {
+        const localSettings = await resolveLocalSettings(providerName, options);
+        await saveLocalProviderConfig(providerName, localSettings);
+        await setActiveProvider(providerName);
+
+        console.log(chalk.green(` ${providerName} configured and set active.`));
+        console.log(chalk.gray(`Base URL: ${localSettings.baseUrl}`));
+        console.log(chalk.gray(`Model: ${localSettings.model || '(not set)'}`));
+        if (!localSettings.model) {
+          console.log(chalk.yellow('⚠ No model configured. Use --model or --discover-model.'));
+        }
+        process.exit(0);
+      }
+
+      const apiKey = options.apiKey || value;
+      if (!apiKey) {
+        console.error(chalk.red('API key is required for cloud providers.'));
+        console.error(chalk.cyan(`Example: gg config --provider ${providerName} --api-key <key>`));
+        process.exit(1);
+      }
+
+      const provider = providerFactory.createProvider(providerName, { model: options.model });
+      const valid = await provider.validateApiKey(apiKey);
+      if (!valid) {
+        console.error(chalk.red(`API key validation failed for ${providerName}.`));
+        process.exit(1);
+      }
+
+      const result = await saveCloudApiKey(providerName, apiKey);
+      await setActiveProvider(providerName);
+      console.log(chalk.green(` ${providerName} API key saved and set active.`));
+      console.log(chalk.gray(`Storage: ${result.secureStorage}`));
+      process.exit(0);
+    } catch (error) {
+      console.error(chalk.red('Failed to save provider configuration.'));
+      console.error(chalk.yellow(error.message));
+      process.exit(1);
+    }
+  });
+
+program
+  .command('status')
+  .description('Show provider configuration status')
+  .action(async () => {
+    const statuses = await getProvidersStatus(providerFactory);
+    const active = statuses.find((s) => s.active);
+
+    console.log(chalk.cyan('AI Provider Status'));
+    if (active) {
+      console.log(chalk.green(`Active provider: ${active.provider}`));
+    }
+
+    for (const status of statuses) {
+      const icon = status.configured ? chalk.green('configured') : chalk.yellow('not configured');
+      const label = status.active ? chalk.magenta(' (active)') : '';
+      if (status.type === 'local') {
+        console.log(`- ${status.provider}: ${icon}${label} | url=${status.baseUrl || '-'} | model=${status.model || '-'}`);
+      } else {
+        console.log(`- ${status.provider}: ${icon}${label}`);
+      }
+    }
+  });
+
+program
+  .command('use <provider>')
+  .description('Switch active AI provider')
+  .action(async (provider) => {
+    const supported = providerFactory.getSupportedProviders();
+    const providerName = String(provider || '').toLowerCase();
+
+    if (!supported.includes(providerName)) {
+      console.error(chalk.red(`Unknown provider "${providerName}".`));
+      console.error(chalk.yellow(`Supported providers: ${supported.join(', ')}`));
+      process.exit(1);
+    }
+
+    await setActiveProvider(providerName);
+    console.log(chalk.green(` Active provider set to ${providerName}`));
+
+    if (providerFactory.isLocalProvider(providerName)) {
+      const local = await readLocalProviderConfig(providerName);
+      if (!local.model) {
+        console.log(chalk.yellow(`⚠ ${providerName} has no model set yet.`));
+      }
+      return;
+    }
+
+    const apiKey = await readCloudApiKey(providerName);
+    if (!apiKey) {
+      console.log(chalk.yellow(`⚠ ${providerName} has no API key configured.`));
+      console.log(chalk.cyan(`Configure it with: gg config --provider ${providerName} --api-key <key>`));
+    }
   });
 
 program.command('cl')
@@ -263,7 +271,7 @@ program.command('cl')
       })();
 
       const targetDir = dir || repoNameFromUrl;
-      spinner.succeed(`✅ Repository cloned to "${targetDir}"`);
+      spinner.succeed(` Repository cloned to "${targetDir}"`);
 
       // Helpful next steps
       console.log(chalk.cyan('Next steps:'));
@@ -273,7 +281,7 @@ program.command('cl')
       // Try to automatically open the repo in VS Code
       try {
         await execaCommand('code .', { cwd: path.resolve(process.cwd(), targetDir) });
-        console.log(chalk.green(`✅ Opened "${targetDir}" in VS Code`));
+        console.log(chalk.green(` Opened "${targetDir}" in VS Code`));
       } catch (openErr) {
         console.log(chalk.yellow('⚠ Could not open VS Code automatically.'));
         console.log(chalk.cyan('Tip: Ensure the "code" command is on your PATH. In VS Code, use: Command Palette → Shell Command: Install "code" command in PATH.'));
@@ -530,7 +538,7 @@ us
       }
 
       await git.raw(['remote', 'add', 'upstream', url]);
-      console.log(chalk.green(`✅ Upstream remote added: ${url}`));
+      console.log(chalk.green(` Upstream remote added: ${url}`));
     } catch (err) {
       console.log(chalk.red('❌ Failed to add upstream remote.'));
       if (err?.message) console.log(chalk.gray(`Details: ${err.message}`));
@@ -591,7 +599,7 @@ us
       const spinnerPush = ora('🚀 Pushing main to origin...').start();
       try {
         await git.push('origin', 'main');
-        spinnerPush.succeed('✅ Fork is now up to date (origin/main).');
+        spinnerPush.succeed(' Fork is now up to date (origin/main).');
       } catch (err) {
         spinnerPush.fail('Failed to push main to origin.');
         if (err?.message) console.log(chalk.gray(`Details: ${err.message}`));
@@ -630,7 +638,7 @@ program
 
       try {
         await execaCommand('code -n .', { cwd: match.path });
-        console.log(chalk.green('✅ Opened worktree in a new VS Code window.'));
+        console.log(chalk.green(' Opened worktree in a new VS Code window.'));
       } catch {
         console.log(chalk.yellow('⚠ Could not open VS Code automatically. Make sure the "code" command is on your PATH.'));
       }
@@ -671,7 +679,7 @@ program
     const first = process.argv[2];
 
     // 🚫 If first arg is a known subcommand, do nothing here
-    if (['commit', 'b', 's', 'wt', 'cl', 'config'].includes(first)) return;
+    if (['commit', 'b', 's', 'wt', 'cl', 'config', 'status', 'use', 'setup', 'us', 'goto'].includes(first)) return;
 
     // No args → open menu
     if (!desc) {
@@ -694,147 +702,106 @@ program.parse(process.argv);
 
 /** Generate commit message */
 async function generateCommitMessage(diff, opts, desc) {
-  const apiKey = await getApiKey();
+  const type = opts.type || 'chore';
+  const fallback = `${type}${opts.scope ? `(${opts.scope})` : ''}: ${desc}`;
+  if (!opts.genie) return fallback;
 
-  if (!opts.genie || !apiKey) {
-    if (opts.genie && !apiKey) {
-      console.warn(chalk.yellow('⚠ GEMINI_API_KEY not found. Falling back to manual commit message.'));
-      console.warn(chalk.cyan('To enable AI commit messages, set your API key:'));
-      console.warn(chalk.gray('Example: gg config <your_api_key>'));
-    }
-    return `${opts.type}${opts.scope ? `(${opts.scope})` : ''}: ${desc}`;
+  const context = await getProviderContext();
+  if (!context) {
+    console.warn(chalk.yellow('⚠ AI provider unavailable. Falling back to manual commit message.'));
+    return fallback;
   }
 
-  const spinner = ora('🧞 Generating commit message with genie...').start();
+  const spinner = ora(`🧞 Generating commit message with ${context.activeProvider}...`).start();
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
-    const prompt = `You are a senior software engineer at a Fortune 500 company. Generate a professional git commit message following strict industry standards.
-
-    REQUIREMENTS:
-    - Follow Conventional Commits specification exactly
-    - Format: type(scope): description
-    - Description must be under 50 characters
-    - Use imperative mood (add, fix, update, not adds, fixes, updates)
-    - First letter of description lowercase
-    - No period at the end
-    - Choose appropriate type: feat, fix, docs, style, refactor, test, chore, ci, build, perf
-    - Include scope when relevant (component/module/area affected)
-
-    Code diff to analyze:
-    ${diff}
-
-    Return ONLY the commit message, no explanations or quotes.`;
-
-    const result = await model.generateContent(prompt);
-    spinner.succeed(' Commit message generated by Gemini');
-    return result.response?.text()?.trim() || `${opts.type}: ${desc}`;
+    const message = await context.provider.generateCommitMessage({
+      apiKey: context.apiKey,
+      diff,
+      desc,
+      type,
+      scope: opts.scope,
+    });
+    spinner.succeed(` Commit message generated by ${context.activeProvider}`);
+    return message || fallback;
   } catch (err) {
     spinner.fail('AI commit message generation failed. Using manual message instead.');
-    console.error(chalk.red('Error from Gemini API:'), err.message);
-    console.error(chalk.yellow('Tip: Check your API key and network connection.'));
-    console.error(chalk.cyan('To set your API key: gg config <your_api_key>'));
-    return `${opts.type}${opts.scope ? `(${opts.scope})` : ''}: ${desc}`;
+    console.error(chalk.yellow(`Tip: ${err.message}`));
+    return fallback;
   }
 }
 
 async function generatePRTitle(diff, opts, desc) {
-  const apiKey = await getApiKey();
+  const type = opts.type || 'chore';
+  const fallback = `${type}${opts.scope ? `(${opts.scope})` : ''}: ${desc}`;
+  if (!opts.genie) return fallback;
 
-  if (!opts.genie || !apiKey) {
-    if (opts.genie && !apiKey) {
-      console.warn(chalk.yellow('⚠ GEMINI_API_KEY not found. Falling back to manual PR title.'));
-      console.warn(chalk.cyan('To enable AI PR titles, set your API key:'));
-      console.warn(chalk.gray('Example: gg config <your_api_key>'));
-    }
-    return `${opts.type}${opts.scope ? `(${opts.scope})` : ''}: ${desc}`;
+  const context = await getProviderContext();
+  if (!context) {
+    console.warn(chalk.yellow('⚠ AI provider unavailable. Falling back to manual PR title.'));
+    return fallback;
   }
 
-  const spinner = ora('🧞 Generating PR title with genie...').start();
+  const spinner = ora(`🧞 Generating PR title with ${context.activeProvider}...`).start();
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
-    const prompt = `You are a senior software engineer at a Fortune 500 company. Generate a professional Pull Request title following industry best practices.
-
-    REQUIREMENTS:
-    - Clear, descriptive title that summarizes the changes
-    - Start with action verb (Add, Fix, Update, Implement, etc.)
-    - Keep under 72 characters
-    - Use sentence case
-    - Focus on the "what" and "why" of the change
-    - No period at the end
-    - Be specific about the feature/fix being introduced
-
-    Code diff to analyze:
-    ${diff}
-
-    Return ONLY the PR title, no explanations or quotes.`;
-
-    const result = await model.generateContent(prompt);
-    spinner.succeed(' PR title generated by Gemini');
-    return result.response?.text()?.trim() || `${opts.type}: ${desc}`;
+    const title = await context.provider.generatePRTitle({
+      apiKey: context.apiKey,
+      diff,
+      desc,
+      type,
+      scope: opts.scope,
+    });
+    spinner.succeed(` PR title generated by ${context.activeProvider}`);
+    return title || fallback;
   } catch (err) {
     spinner.fail('AI PR title generation failed. Using manual title instead.');
-    console.error(chalk.red('Error from Gemini API:'), err.message);
-    console.error(chalk.yellow('Tip: Check your API key and network connection.'));
-    console.error(chalk.cyan('To set your API key: gg config <your_api_key>'));
-    return `${opts.type}${opts.scope ? `(${opts.scope})` : ''}: ${desc}`;
+    console.error(chalk.yellow(`Tip: ${err.message}`));
+    return fallback;
   }
 }
 
 async function generateBranchName(diff, opts, desc) {
-  const apiKey = await getApiKey();
+  const type = opts.type || 'chore';
+  const fallback = `${type}/${desc.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}`;
+  if (!opts.genie) return fallback;
 
-  if (!opts.genie || !apiKey) {
-    // Silently fall back to manual branch naming without warnings
-    return `${opts.type}/${desc.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}`;
-  }
+  const context = await getProviderContext();
+  if (!context) return fallback;
 
-  const spinner = ora('🧞 Generating branch name with genie...').start();
+  const spinner = ora(`🧞 Generating branch name with ${context.activeProvider}...`).start();
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
-    const prompt = `You are a senior software engineer. Generate a professional git branch name following industry best practices.
-
-    REQUIREMENTS:
-    - Follow git branch naming conventions
-    - Format: type/short-descriptive-name
-    - Use kebab-case (dashes between words)
-    - Keep under 40 characters total
-    - Use appropriate type: feature, fix, hotfix, chore, docs, style, refactor, test
-    - Be descriptive but concise
-    - No special characters except dashes and forward slash
-    - Focus on what the change accomplishes
-
-    Code diff to analyze:
-    ${diff}
-
-    Description provided: ${desc}
-
-    Return ONLY the branch name, no explanations or quotes.
-    Example format: feature/user-authentication or fix/login-validation`;
-
-    const result = await model.generateContent(prompt);
-    spinner.succeed(' Branch name generated by Gemini');
-    const aiGeneratedName = result.response?.text()?.trim();
-
-    // Ensure the AI result follows our expected format, fallback if not
-    if (aiGeneratedName && aiGeneratedName.includes('/') && aiGeneratedName.length <= 50) {
-      return aiGeneratedName;
-    } else {
-      return `${opts.type}/${desc.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}`;
-    }
+    const name = await context.provider.generateBranchName({
+      apiKey: context.apiKey,
+      diff,
+      desc,
+      type,
+    });
+    spinner.succeed(` Branch name generated by ${context.activeProvider}`);
+    return name || fallback;
   } catch (err) {
     spinner.fail('AI branch name generation failed. Using manual name instead.');
-    if (opts.genie) {
-      console.error(chalk.yellow('Tip: Check your API key and network connection.'));
-      console.error(chalk.cyan('To set your API key: gg config <your_api_key>'));
-    }
-    return `${opts.type}/${desc.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}`;
+    console.error(chalk.yellow(`Tip: ${err.message}`));
+    return fallback;
   }
+}
+
+async function getProviderContext() {
+  const config = await readConfig();
+  const activeProvider = (config.activeProvider || 'gemini').toLowerCase();
+  const provider = await getActiveProviderInstance({ silent: false });
+  if (!provider) {
+    return null;
+  }
+
+  if (providerFactory.isLocalProvider(activeProvider)) {
+    return { provider, activeProvider, apiKey: null };
+  }
+
+  const apiKey = await readCloudApiKey(activeProvider);
+  if (!apiKey) {
+    return null;
+  }
+
+  return { provider, activeProvider, apiKey };
 }
 
 /** Stage all files */
@@ -907,7 +874,7 @@ async function ensureRemoteOriginInteractive() {
 
     try {
       await git.remote(['add', 'origin', remoteUrl]);
-      console.log(chalk.green(`✅ Remote origin set to ${remoteUrl}`));
+      console.log(chalk.green(` Remote origin set to ${remoteUrl}`));
       return true;
     } catch {
       console.log(chalk.red('❌ Failed to add remote origin.'));
@@ -1144,7 +1111,7 @@ async function runMainFlow(desc, opts) {
           const spinner = ora(`🚀 Pushing main branch...`).start();
           try {
             await git.push(['-u', 'origin', 'main']);
-            spinner.succeed(`✅ Pushed main successfully`);
+            spinner.succeed(` Pushed main successfully`);
           } catch (err) {
             spinner.fail(`❌ Failed to push main`);
             throw err;

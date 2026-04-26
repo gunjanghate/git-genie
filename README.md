@@ -2,7 +2,7 @@
 
 ## Overview
 
-**GitGenie** is an intelligent command-line interface (CLI) tool designed to simplify and automate Git workflows. It handles common Git operations like committing, branch management, staging, and pushing, while optionally integrating AI-generated commit messages using Google Gemini. This comprehensive documentation details all features, configurations, and functionality implemented to date.
+**GitGenie** is an intelligent command-line interface (CLI) tool designed to simplify and automate Git workflows. It handles common Git operations like committing, branch management, staging, and pushing, while optionally integrating AI-generated messages through a provider-agnostic layer (cloud and local providers). This comprehensive documentation details all features, configurations, and functionality implemented to date.
 
 ## What's New
 
@@ -23,10 +23,20 @@ npm install -g @gunjanghate/git-genie
 
 ### Configuration
 
-Before using AI features, configure your Gemini API key:
+Before using AI features, configure at least one provider:
 
 ```bash
+# Backward-compatible Gemini shortcut
 gg config YOUR_GEMINI_API_KEY
+
+# Explicit cloud provider setup
+gg config --provider gemini --api-key YOUR_GEMINI_API_KEY
+gg config --provider mistral --api-key YOUR_MISTRAL_API_KEY
+gg config --provider groq --api-key YOUR_GROQ_API_KEY
+
+# Local provider setup
+gg config --provider ollama --url http://localhost:11434 --model llama3.2
+gg config --provider lmstudio --url http://localhost:1234/v1 --model your-model-id
 ```
 
 ### Basic Usage
@@ -47,25 +57,90 @@ gg "add dashboard" --type feat --push-to-main
 
 ## Configuration Management
 
-### Setting up Gemini API Key
+### AI Provider Setup
 
-GitGenie supports multiple ways to configure your Gemini API key:
+GitGenie supports multiple providers and one active provider at runtime.
 
-#### Method 1: Using the config command (Recommended)
+Supported providers:
+
+- Cloud: `gemini`, `mistral`, `groq`
+- Local: `ollama`, `lmstudio`
+
+Configure cloud providers:
+
+```bash
+gg config --provider gemini --api-key YOUR_GEMINI_API_KEY
+gg config --provider mistral --api-key YOUR_MISTRAL_API_KEY
+gg config --provider groq --api-key YOUR_GROQ_API_KEY
+```
+
+Configure local providers:
+
+```bash
+# Explicit URL + model
+gg config --provider ollama --url http://localhost:11434 --model llama3.2
+gg config --provider lmstudio --url http://localhost:1234/v1 --model your-model-id
+
+# Optional model auto-discovery
+gg config --provider ollama --discover-model
+gg config --provider lmstudio --discover-model
+```
+
+Switch active provider:
+
+```bash
+gg use gemini
+gg use mistral
+gg use groq
+gg use ollama
+gg use lmstudio
+```
+
+Show provider status:
+
+```bash
+gg status
+```
+
+Backward-compatible shortcut:
 
 ```bash
 gg config YOUR_GEMINI_API_KEY
 ```
 
-This saves the API key to `~/.gitgenie/config.json` for persistent use across all projects.
+This still saves Gemini API key and makes Gemini active.
 
-#### Method 2: Environment variable
+Storage behavior:
+
+- Cloud keys: secure storage first (keychain/keytar), encrypted file fallback.
+- Local settings: stored in `~/.gitgenie/config.json`.
+
+Environment variables:
+
+- `GEMINI_API_KEY`
+- `MISTRAL_API_KEY`
+- `GROQ_API_KEY`
+
+### Local Provider Troubleshooting
+
+- `Active local provider is unreachable`: confirm local server is running and URL is correct.
+- `No model configured`: run `gg config --provider <ollama|lmstudio> --model <model>`.
+- Ollama model not found: run `ollama list` and choose an installed model.
+- LM Studio model missing: load/start a model in LM Studio and verify `/v1/models` is available.
+
+### Getting a Gemini API Key
+
+1. Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. Create a new API key
+3. Configure it using one of the methods above
+
+### Legacy Environment Variable Example
 
 ```bash
 export GEMINI_API_KEY="your_api_key_here"
 ```
 
-#### Method 3: .env file in project directory
+### .env file in project directory
 
 Create a `.env` file in your project root:
 
@@ -75,17 +150,11 @@ GEMINI_API_KEY=your_api_key_here
 
 **Priority Order:** Environment variable > Config file > .env file
 
-### Getting a Gemini API Key
-
-1. Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
-2. Create a new API key
-3. Configure it using one of the methods above
-
 ## Key Features
 
 - Validates Git repository existence and initializes if needed
 - Automatic file staging with progress feedback
-- AI-powered commit message generation using Google Gemini
+- AI-powered commit/PR/branch naming via active provider
 - Open source contribution workflow with --osc flag (issue-based branch naming)
 - Interactive branch management with auto-suggestions
 - Automated merge-to-main workflows
@@ -179,7 +248,11 @@ gg <description> [options]
 ### Configuration Command
 
 ```bash
-gg config <api-key>    # Save Gemini API key for persistent use
+gg config [value]                          # Configure provider credentials/settings
+gg config --provider gemini --api-key ...  # Configure cloud provider key
+gg config --provider ollama --url ... --model ...
+gg use <provider>                          # Switch active provider
+gg status                                  # Show all provider status
 ```
 
 ### Available Options
@@ -187,7 +260,7 @@ gg config <api-key>    # Save Gemini API key for persistent use
 - `<desc>`: Short description of the change (mandatory)
 - `--type <type>`: Commit type (if omitted and not using `--genie`, GitGenie will auto-detect a likely type from your changes)
 - `--scope <scope>`: Optional scope for commit message
-- `--genie`: Enable AI commit message generation using Google Gemini
+- `--genie`: Enable AI generation using the active provider
 - Auto-detect commit type (non-genie): If you don’t pass `--type` and you’re not using `--genie`, GitGenie will infer a likely type from your changes.
 - `--osc`: Open source contribution branch format (prompts for issue number, branch name: type/#issue-shorttitle)
 - `--no-branch`: Skip interactive branch choice and commit to main
@@ -249,7 +322,7 @@ GitGenie Project/
 ### 4. Commit Message Generation
 
 - **Manual mode (default)**: Uses conventional commit format `type(scope): description`
-- **AI mode (--genie)**: Powered by Google Gemini 2.0 Flash model
+- **AI mode (--genie)**: Uses the active configured provider (cloud or local)
 - Professional Conventional Commits specification compliance
 - Intelligent analysis of code diffs for contextual commit messages
 - Graceful fallback to manual mode when AI fails
